@@ -26,6 +26,9 @@ export function useCreateResume() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/resumes"] });
     },
+    onError: (error) => {
+      console.error("Failed to create resume:", error);
+    },
   });
 }
 

@@ -2,6 +2,9 @@ import type { ResumeData, PersonalInfo, WorkExperience, Education, Skill } from 
 
 // Generate unique IDs for resume sections
 export const generateId = (): string => {
+  if (typeof window !== 'undefined' && window.crypto && window.crypto.randomUUID) {
+    return window.crypto.randomUUID();
+  }
   return Math.random().toString(36).substr(2, 9);
 };
 
