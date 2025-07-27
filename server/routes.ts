@@ -353,6 +353,68 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Admin user management routes
+  app.get("/api/admin/users", authenticateToken, requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const users = await storage.getAllUsers();
+      // Remove password from response
+      const sanitizedUsers = users.map(user => ({
+        ...user,
+        password: undefined
+      }));
+      res.json(sanitizedUsers);
+    } catch (error) {
+      console.error('Get all users error:', error);
+      res.status(500).json({ message: "Server error" });
+    }
+  });
+
+  // Admin resume management routes
+  app.get("/api/admin/resumes", authenticateToken, requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const resumes = await storage.getAllResumes();
+      res.json(resumes);
+    } catch (error) {
+      console.error('Get all resumes error:', error);
+      res.status(500).json({ message: "Server error" });
+    }
+  });
+
+  // Admin data by date range
+  app.get("/api/admin/users/range", authenticateToken, requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const { startDate, endDate } = req.query;
+      if (!startDate || !endDate) {
+        return res.status(400).json({ message: "Start date and end date are required" });
+      }
+      
+      const users = await storage.getUsersByDateRange(new Date(startDate as string), new Date(endDate as string));
+      const sanitizedUsers = users.map(user => ({
+        ...user,
+        password: undefined
+      }));
+      res.json(sanitizedUsers);
+    } catch (error) {
+      console.error('Get users by date range error:', error);
+      res.status(500).json({ message: "Server error" });
+    }
+  });
+
+  app.get("/api/admin/resumes/range", authenticateToken, requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const { startDate, endDate } = req.query;
+      if (!startDate || !endDate) {
+        return res.status(400).json({ message: "Start date and end date are required" });
+      }
+      
+      const resumes = await storage.getResumesByDateRange(new Date(startDate as string), new Date(endDate as string));
+      res.json(resumes);
+    } catch (error) {
+      console.error('Get resumes by date range error:', error);
+      res.status(500).json({ message: "Server error" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

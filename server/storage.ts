@@ -29,6 +29,12 @@ export interface IStorage {
   getDailyLogins(): Promise<number>;
   getTotalResumes(): Promise<number>;
   recordLogin(userId: string): Promise<void>;
+  
+  // Admin-specific methods
+  getAllUsers(): Promise<User[]>;
+  getAllResumes(): Promise<Resume[]>;
+  getUsersByDateRange(startDate: Date, endDate: Date): Promise<User[]>;
+  getResumesByDateRange(startDate: Date, endDate: Date): Promise<Resume[]>;
 }
 
 export class MemStorage implements IStorage {
@@ -288,6 +294,26 @@ export class MemStorage implements IStorage {
       loginDate: new Date()
     };
     this.sessions.set(sessionId, session);
+  }
+
+  async getAllUsers(): Promise<User[]> {
+    return Array.from(this.users.values());
+  }
+
+  async getAllResumes(): Promise<Resume[]> {
+    return Array.from(this.resumes.values());
+  }
+
+  async getUsersByDateRange(startDate: Date, endDate: Date): Promise<User[]> {
+    return Array.from(this.users.values()).filter(user => 
+      user.createdAt >= startDate && user.createdAt <= endDate
+    );
+  }
+
+  async getResumesByDateRange(startDate: Date, endDate: Date): Promise<Resume[]> {
+    return Array.from(this.resumes.values()).filter(resume => 
+      resume.createdAt >= startDate && resume.createdAt <= endDate
+    );
   }
 }
 

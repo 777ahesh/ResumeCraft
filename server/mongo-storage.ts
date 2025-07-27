@@ -319,4 +319,38 @@ export class MongoStorage implements IStorage {
       updatedAt: mongoTemplate.updatedAt,
     };
   }
+
+  async getAllUsers(): Promise<IUser[]> {
+    await this.connect();
+    const mongoUsers = await User.find({}).sort({ createdAt: -1 });
+    return mongoUsers.map(user => this.transformUser(user));
+  }
+
+  async getAllResumes(): Promise<IResume[]> {
+    await this.connect();
+    const mongoResumes = await Resume.find({}).populate('userId').sort({ createdAt: -1 });
+    return mongoResumes.map(resume => this.transformResume(resume));
+  }
+
+  async getUsersByDateRange(startDate: Date, endDate: Date): Promise<IUser[]> {
+    await this.connect();
+    const mongoUsers = await User.find({
+      createdAt: {
+        $gte: startDate,
+        $lte: endDate
+      }
+    }).sort({ createdAt: -1 });
+    return mongoUsers.map(user => this.transformUser(user));
+  }
+
+  async getResumesByDateRange(startDate: Date, endDate: Date): Promise<IResume[]> {
+    await this.connect();
+    const mongoResumes = await Resume.find({
+      createdAt: {
+        $gte: startDate,
+        $lte: endDate
+      }
+    }).populate('userId').sort({ createdAt: -1 });
+    return mongoResumes.map(resume => this.transformResume(resume));
+  }
 }

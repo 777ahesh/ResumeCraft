@@ -43,8 +43,17 @@ interface User {
   firstName: string;
   lastName: string;
   createdAt: string;
-  resumeCount: number;
-  isActive: boolean;
+  updatedAt?: string;
+  isAdmin: boolean;
+}
+
+interface Resume {
+  id: string;
+  userId: string;
+  templateId: string;
+  title: string;
+  createdAt: string;
+  updatedAt?: string;
 }
 
 export default function AdminPanel() {
@@ -81,36 +90,25 @@ export default function AdminPanel() {
     },
   });
 
-  // Mock users data (in real app, this would come from API)
-  const mockUsers: User[] = [
-    {
-      id: "1",
-      email: "john.doe@email.com",
-      firstName: "John",
-      lastName: "Doe",
-      createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-      resumeCount: 2,
-      isActive: true,
+  // Fetch all users
+  const { data: allUsers, isLoading: usersLoading } = useQuery<User[]>({
+    queryKey: ["/api/admin/users"],
+    enabled: user?.isAdmin,
+    queryFn: async () => {
+      const response = await apiRequest("GET", "/api/admin/users");
+      return response.json();
     },
-    {
-      id: "2", 
-      email: "jane.smith@email.com",
-      firstName: "Jane",
-      lastName: "Smith",
-      createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-      resumeCount: 5,
-      isActive: true,
+  });
+
+  // Fetch all resumes
+  const { data: allResumes, isLoading: resumesLoading } = useQuery<Resume[]>({
+    queryKey: ["/api/admin/resumes"],
+    enabled: user?.isAdmin,
+    queryFn: async () => {
+      const response = await apiRequest("GET", "/api/admin/resumes");
+      return response.json();
     },
-    {
-      id: "3",
-      email: "mike.wilson@email.com", 
-      firstName: "Mike",
-      lastName: "Wilson",
-      createdAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
-      resumeCount: 1,
-      isActive: false,
-    },
-  ];
+  });
 
   // Create template mutation
   const createTemplateMutation = useMutation({
@@ -167,10 +165,15 @@ export default function AdminPanel() {
     return null;
   }
 
-  const filteredUsers = mockUsers.filter(user =>
-    user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    `${user.firstName} ${user.lastName}`.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredUsers = (allUsers || []).filter(u =>
+    u.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    `${u.firstName} ${u.lastName}`.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  // Helper function to get resume count for a user
+  const getUserResumeCount = (userId: string) => {
+    return (allResumes || []).filter(resume => resume.userId === userId).length;
+  };
 
   const handleDeleteTemplate = (id: string) => {
     if (window.confirm("Are you sure you want to delete this template?")) {
@@ -300,6 +303,78 @@ export default function AdminPanel() {
             </motion.div>
           </div>
 
+          {/* Detailed MongoDB Statistics */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.6 }}
+            >
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Active Users</p>
+                      <p className="text-2xl font-bold text-gray-900">
+                        {(allUsers || []).filter(u => !u.isAdmin).length}
+                      </p>
+                    </div>
+                    <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                      <Users className="h-5 w-5 text-green-600" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.7 }}
+            >
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Admin Users</p>
+                      <p className="text-2xl font-bold text-gray-900">
+                        {(allUsers || []).filter(u => u.isAdmin).length}
+                      </p>
+                    </div>
+                    <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
+                      <UserPlus className="h-5 w-5 text-purple-600" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.8 }}
+            >
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Recent Resumes</p>
+                      <p className="text-2xl font-bold text-gray-900">
+                        {(allResumes || []).filter(r => 
+                          new Date(r.createdAt) >= new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+                        ).length}
+                      </p>
+                      <p className="text-xs text-gray-500">Last 7 days</p>
+                    </div>
+                    <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center">
+                      <TrendingUp className="h-5 w-5 text-orange-600" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          </div>
+
           {/* Admin Tabs */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -309,8 +384,9 @@ export default function AdminPanel() {
             <Card>
               <Tabs defaultValue="users" className="w-full">
                 <CardHeader>
-                  <TabsList className="grid w-full grid-cols-3">
+                  <TabsList className="grid w-full grid-cols-4">
                     <TabsTrigger value="users">Users</TabsTrigger>
+                    <TabsTrigger value="resumes">Resumes</TabsTrigger>
                     <TabsTrigger value="templates">Templates</TabsTrigger>
                     <TabsTrigger value="analytics">Analytics</TabsTrigger>
                   </TabsList>
@@ -345,42 +421,143 @@ export default function AdminPanel() {
                           </tr>
                         </thead>
                         <tbody>
-                          {filteredUsers.map((user) => (
-                            <tr key={user.id} className="border-b border-gray-100 hover:bg-gray-50">
-                              <td className="py-3 px-4">
-                                <div className="flex items-center">
-                                  <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center mr-3">
-                                    <span className="text-white text-sm font-medium">
-                                      {user.firstName.charAt(0)}{user.lastName.charAt(0)}
-                                    </span>
-                                  </div>
-                                  <span className="font-medium text-gray-900">
-                                    {user.firstName} {user.lastName}
-                                  </span>
-                                </div>
-                              </td>
-                              <td className="py-3 px-4 text-gray-700">{user.email}</td>
-                              <td className="py-3 px-4 text-gray-700">
-                                {formatDistanceToNow(new Date(user.createdAt), { addSuffix: true })}
-                              </td>
-                              <td className="py-3 px-4 text-gray-700">{user.resumeCount}</td>
-                              <td className="py-3 px-4">
-                                <Badge variant={user.isActive ? "default" : "secondary"}>
-                                  {user.isActive ? "Active" : "Inactive"}
-                                </Badge>
-                              </td>
-                              <td className="py-3 px-4">
-                                <div className="flex space-x-2">
-                                  <Button size="sm" variant="ghost">
-                                    <Eye className="h-4 w-4" />
-                                  </Button>
-                                  <Button size="sm" variant="ghost" className="text-red-600 hover:text-red-700">
-                                    Suspend
-                                  </Button>
-                                </div>
+                          {usersLoading ? (
+                            <tr>
+                              <td colSpan={6} className="py-8 text-center">
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
                               </td>
                             </tr>
-                          ))}
+                          ) : filteredUsers.length === 0 ? (
+                            <tr>
+                              <td colSpan={6} className="py-8 text-center text-gray-500">
+                                No users found
+                              </td>
+                            </tr>
+                          ) : (
+                            filteredUsers.map((user) => (
+                              <tr key={user.id} className="border-b border-gray-100 hover:bg-gray-50">
+                                <td className="py-3 px-4">
+                                  <div className="flex items-center">
+                                    <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center mr-3">
+                                      <span className="text-white text-sm font-medium">
+                                        {user.firstName.charAt(0)}{user.lastName.charAt(0)}
+                                      </span>
+                                    </div>
+                                    <span className="font-medium text-gray-900">
+                                      {user.firstName} {user.lastName}
+                                    </span>
+                                  </div>
+                                </td>
+                                <td className="py-3 px-4 text-gray-700">{user.email}</td>
+                                <td className="py-3 px-4 text-gray-700">
+                                  {formatDistanceToNow(new Date(user.createdAt), { addSuffix: true })}
+                                </td>
+                                <td className="py-3 px-4 text-gray-700">{getUserResumeCount(user.id)}</td>
+                                <td className="py-3 px-4">
+                                  <Badge variant={user.isAdmin ? "default" : "secondary"}>
+                                    {user.isAdmin ? "Admin" : "User"}
+                                  </Badge>
+                                </td>
+                                <td className="py-3 px-4">
+                                  <div className="flex space-x-2">
+                                    <Button size="sm" variant="ghost">
+                                      <Eye className="h-4 w-4" />
+                                    </Button>
+                                    <Button size="sm" variant="ghost" className="text-red-600 hover:text-red-700">
+                                      Suspend
+                                    </Button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </TabsContent>
+
+                  {/* Resumes Tab */}
+                  <TabsContent value="resumes" className="space-y-4">
+                    <div className="flex justify-between items-center">
+                      <h2 className="text-lg font-semibold text-gray-900">Resume Management</h2>
+                      <div className="flex space-x-3">
+                        <Input
+                          placeholder="Search resumes..."
+                          value={searchTerm}
+                          onChange={(e) => setSearchTerm(e.target.value)}
+                          className="w-64"
+                        />
+                        <Button variant="outline">Export Data</Button>
+                      </div>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead>
+                          <tr className="border-b border-gray-200">
+                            <th className="text-left py-3 px-4 font-medium text-gray-700">Title</th>
+                            <th className="text-left py-3 px-4 font-medium text-gray-700">Owner</th>
+                            <th className="text-left py-3 px-4 font-medium text-gray-700">Template</th>
+                            <th className="text-left py-3 px-4 font-medium text-gray-700">Created</th>
+                            <th className="text-left py-3 px-4 font-medium text-gray-700">Updated</th>
+                            <th className="text-left py-3 px-4 font-medium text-gray-700">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {resumesLoading ? (
+                            <tr>
+                              <td colSpan={6} className="py-8 text-center">
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+                              </td>
+                            </tr>
+                          ) : (allResumes || []).length === 0 ? (
+                            <tr>
+                              <td colSpan={6} className="py-8 text-center text-gray-500">
+                                No resumes found
+                              </td>
+                            </tr>
+                          ) : (
+                            (allResumes || [])
+                              .filter(resume => 
+                                resume.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                resume.templateId.toLowerCase().includes(searchTerm.toLowerCase())
+                              )
+                              .map((resume) => {
+                                const resumeOwner = (allUsers || []).find(u => u.id === resume.userId);
+                                return (
+                                  <tr key={resume.id} className="border-b border-gray-100 hover:bg-gray-50">
+                                    <td className="py-3 px-4">
+                                      <div className="flex items-center">
+                                        <FileText className="h-4 w-4 text-gray-400 mr-2" />
+                                        <span className="font-medium text-gray-900">{resume.title}</span>
+                                      </div>
+                                    </td>
+                                    <td className="py-3 px-4 text-gray-700">
+                                      {resumeOwner ? `${resumeOwner.firstName} ${resumeOwner.lastName}` : 'Unknown User'}
+                                    </td>
+                                    <td className="py-3 px-4 text-gray-700">
+                                      <Badge variant="outline">{resume.templateId}</Badge>
+                                    </td>
+                                    <td className="py-3 px-4 text-gray-700">
+                                      {formatDistanceToNow(new Date(resume.createdAt), { addSuffix: true })}
+                                    </td>
+                                    <td className="py-3 px-4 text-gray-700">
+                                      {resume.updatedAt ? formatDistanceToNow(new Date(resume.updatedAt), { addSuffix: true }) : 'Never'}
+                                    </td>
+                                    <td className="py-3 px-4">
+                                      <div className="flex space-x-2">
+                                        <Button size="sm" variant="ghost">
+                                          <Eye className="h-4 w-4" />
+                                        </Button>
+                                        <Button size="sm" variant="ghost" className="text-red-600 hover:text-red-700">
+                                          <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              })
+                          )}
                         </tbody>
                       </table>
                     </div>
