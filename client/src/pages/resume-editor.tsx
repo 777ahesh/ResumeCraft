@@ -7,7 +7,7 @@ import { ResumeControlPanel } from "@/components/resume-control-panel";
 import { StyleConfigPanel } from "@/components/style-config-panel";
 import { Button } from "@/components/ui/button";
 import { useResume, useUpdateResume } from "@/hooks/use-resumes";
-import { ArrowLeft, Save, Download, Undo, Redo, FileText, ChevronDown, Palette, Menu, Settings } from "lucide-react";
+import { ArrowLeft, Save, Download, Undo, Redo, FileText, ChevronDown, Palette, Menu, Settings, Move } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 import type { ResumeData, StyleConfig } from "@/types/resume";
@@ -55,6 +55,7 @@ export default function ResumeEditor() {
   const [currentTemplate, setCurrentTemplate] = useState<string>("modern-professional");
   const [showControlPanel, setShowControlPanel] = useState(!isMobile);
   const [activePanel, setActivePanel] = useState<'content' | 'style'>('content');
+  const [isInteractiveMode, setIsInteractiveMode] = useState(false);
 
   // Default style configuration
   const defaultStyleConfig: StyleConfig = {
@@ -326,6 +327,16 @@ export default function ResumeEditor() {
 
             {!isMobile && <div className="h-4 sm:h-6 w-px bg-gray-300"></div>}
             
+            {/* Interactive Mode Toggle */}
+            <Button
+              variant={isInteractiveMode ? "default" : "outline"}
+              onClick={() => setIsInteractiveMode(!isInteractiveMode)}
+              size={isMobile ? "sm" : "default"}
+            >
+              <Move className="mr-1 h-3 w-3 sm:h-4 sm:w-4" />
+              {isMobile ? "Move" : (isInteractiveMode ? "Exit Move" : "Move Mode")}
+            </Button>
+            
             <Button
               variant="outline"
               onClick={handleSave}
@@ -374,11 +385,21 @@ export default function ResumeEditor() {
             />
           )
         )}
-        <ResumeCanvas
-          resumeData={resumeData}
-          template={currentTemplate}
-          styleConfig={resumeData?.styleConfig}
-        />
+        <div className="flex-1 bg-gray-100 p-2 sm:p-4 lg:p-8 overflow-auto">
+          <div className="flex justify-center">
+            <div className={`${isMobile ? 'w-full max-w-sm' : 'w-full max-w-4xl'}`}>
+              <div className={`${isMobile ? 'transform scale-75 origin-top' : ''}`}>
+                <ResumeCanvas
+                  resumeData={resumeData}
+                  template={currentTemplate}
+                  styleConfig={resumeData?.styleConfig}
+                  isInteractiveMode={isInteractiveMode}
+                  onResumeDataChange={handleDataChange}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

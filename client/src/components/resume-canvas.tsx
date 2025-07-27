@@ -1,14 +1,44 @@
 import type { ResumeData, StyleConfig } from "@/types/resume";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useState } from "react";
 
 interface ResumeCanvasProps {
   resumeData: ResumeData;
   template: string;
   styleConfig?: StyleConfig;
+  isInteractiveMode?: boolean;
+  onResumeDataChange?: (data: ResumeData) => void;
 }
 
-export function ResumeCanvas({ resumeData, template, styleConfig }: ResumeCanvasProps) {
+export function ResumeCanvas({ 
+  resumeData, 
+  template, 
+  styleConfig, 
+  isInteractiveMode = false, 
+  onResumeDataChange 
+}: ResumeCanvasProps) {
   const isMobile = useIsMobile();
+  const [selectedSection, setSelectedSection] = useState<string | null>(null);
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+
+  // Interactive mode handlers
+  const handleSectionClick = (sectionId: string, event: React.MouseEvent) => {
+    if (!isInteractiveMode) return;
+    event.stopPropagation();
+    setSelectedSection(selectedSection === sectionId ? null : sectionId);
+  };
+
+  const handleDragStart = (event: React.MouseEvent, sectionId: string) => {
+    if (!isInteractiveMode) return;
+    event.preventDefault();
+    setSelectedSection(sectionId);
+    
+    const rect = (event.target as HTMLElement).getBoundingClientRect();
+    setDragOffset({
+      x: event.clientX - rect.left,
+      y: event.clientY - rect.top
+    });
+  };
   
   const getTemplateConfig = (templateId: string) => {
     const configs = {
@@ -55,6 +85,73 @@ export function ResumeCanvas({ resumeData, template, styleConfig }: ResumeCanvas
 
   const templateConfig = getTemplateConfig(template);
 
+  // Wrapper component for all templates to ensure consistent styling
+  const TemplateWrapper = ({ children }: { children: React.ReactNode }) => (
+    <div 
+      className={`bg-white rounded-lg shadow-lg overflow-hidden resume-canvas relative ${
+        isInteractiveMode ? 'border-2 border-dashed border-blue-300 bg-blue-50' : ''
+      }`}
+      style={{ 
+        width: "100%", 
+        maxWidth: isMobile ? "100%" : "8.5in",
+        minHeight: isMobile ? "auto" : "11in",
+        aspectRatio: isMobile ? "auto" : "8.5/11",
+        ...dynamicStyles,
+        borderRadius: styleConfig?.borderRadius ? `${styleConfig.borderRadius}px` : '8px'
+      }}
+      onClick={() => setSelectedSection(null)}
+    >
+      {isInteractiveMode && (
+        <div className="absolute top-2 left-2 bg-blue-500 text-white text-xs px-2 py-1 rounded z-10">
+          Move Mode: Click sections to select and drag
+        </div>
+      )}
+      {children}
+    </div>
+  );
+
+  // Enhanced DraggableSection with better visual feedback
+  const DraggableSection = ({ 
+    id, 
+    children, 
+    className = "" 
+  }: { 
+    id: string; 
+    children: React.ReactNode; 
+    className?: string;
+  }) => {
+    const isSelected = selectedSection === id;
+    
+    if (!isInteractiveMode) {
+      return <div className={className}>{children}</div>;
+    }
+    
+    return (
+      <div
+        className={`${className} cursor-move transition-all duration-200 relative ${
+          isSelected 
+            ? 'ring-2 ring-blue-500 bg-blue-50 shadow-lg transform scale-105 z-20' 
+            : 'hover:shadow-md hover:ring-1 hover:ring-blue-300 hover:bg-blue-25'
+        }`}
+        onClick={(e) => handleSectionClick(id, e)}
+        style={{
+          userSelect: 'none'
+        }}
+        title={isInteractiveMode ? `Click to select ${id.replace('-', ' ')}` : undefined}
+      >
+        {children}
+        {isSelected && (
+          <>
+            <div className="absolute inset-0 border-2 border-blue-500 border-dashed pointer-events-none rounded" />
+            <div className="absolute -top-6 left-0 bg-blue-500 text-white text-xs px-2 py-1 rounded z-30">
+              {id.replace('-', ' ')} (selected)
+            </div>
+          </>
+        )}
+      </div>
+    );
+  };
+
   // Generate dynamic styles based on styleConfig
   const getDynamicStyles = () => {
     if (!styleConfig) return {};
@@ -84,15 +181,7 @@ export function ResumeCanvas({ resumeData, template, styleConfig }: ResumeCanvas
 
   // Modern Professional Template - Two Column Layout with Left Sidebar
   const ModernProfessionalTemplate = () => (
-    <div 
-      className="bg-white rounded-lg shadow-lg overflow-hidden resume-canvas"
-      style={{ 
-        width: "8.5in", 
-        minHeight: "11in",
-        ...dynamicStyles,
-        borderRadius: styleConfig?.borderRadius ? `${styleConfig.borderRadius}px` : '8px'
-      }}
-    >
+    <TemplateWrapper>
       <div className="flex">
         {/* Left Sidebar */}
         <div 
@@ -100,110 +189,122 @@ export function ResumeCanvas({ resumeData, template, styleConfig }: ResumeCanvas
           style={{ backgroundColor: templateConfig.primaryColor }}
         >
           {/* Profile Photo Placeholder */}
-          <div className="w-32 h-32 bg-white bg-opacity-20 rounded-full mx-auto mb-6 flex items-center justify-center">
-            <span className="text-4xl">👤</span>
-          </div>
+          <DraggableSection id="profile-photo" className="relative">
+            <div className="w-32 h-32 bg-white bg-opacity-20 rounded-full mx-auto mb-6 flex items-center justify-center">
+              <span className="text-4xl">👤</span>
+            </div>
+          </DraggableSection>
           
           {/* Contact Info */}
-          <div className="mb-6">
-            <h3 className="text-lg font-bold mb-4 uppercase tracking-wide">Contact</h3>
-            <div className="space-y-3 text-sm">
-              {resumeData.personalInfo.email && (
-                <div className="flex items-center">
-                  <span className="mr-3">📧</span>
-                  <span className="break-all">{resumeData.personalInfo.email}</span>
-                </div>
-              )}
-              {resumeData.personalInfo.phone && (
-                <div className="flex items-center">
-                  <span className="mr-3">📱</span>
-                  <span>{resumeData.personalInfo.phone}</span>
-                </div>
-              )}
-              {resumeData.personalInfo.location && (
-                <div className="flex items-center">
-                  <span className="mr-3">📍</span>
-                  <span>{resumeData.personalInfo.location}</span>
-                </div>
-              )}
+          <DraggableSection id="contact-info" className="relative mb-6">
+            <div>
+              <h3 className="text-lg font-bold mb-4 uppercase tracking-wide">Contact</h3>
+              <div className="space-y-3 text-sm">
+                {resumeData.personalInfo.email && (
+                  <div className="flex items-center">
+                    <span className="mr-3">📧</span>
+                    <span className="break-all">{resumeData.personalInfo.email}</span>
+                  </div>
+                )}
+                {resumeData.personalInfo.phone && (
+                  <div className="flex items-center">
+                    <span className="mr-3">📱</span>
+                    <span>{resumeData.personalInfo.phone}</span>
+                  </div>
+                )}
+                {resumeData.personalInfo.location && (
+                  <div className="flex items-center">
+                    <span className="mr-3">📍</span>
+                    <span>{resumeData.personalInfo.location}</span>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
+          </DraggableSection>
 
           {/* Skills */}
           {resumeData.skills.length > 0 && (
-            <div className="mb-6">
-              <h3 className="text-lg font-bold mb-4 uppercase tracking-wide">Skills</h3>
-              <div className="space-y-4">
-                {Object.entries(resumeData.skills.reduce((acc: { [key: string]: string[] }, skill) => {
-                  if (!acc[skill.category]) {
-                    acc[skill.category] = [];
-                  }
-                  acc[skill.category].push(skill.name);
-                  return acc;
-                }, {})).map(([category, skills]) => (
-                  <div key={category}>
-                    <h4 className="font-semibold text-sm mb-2 opacity-90">{category}</h4>
-                    <div className="space-y-2">
-                      {skills.map((skill, index) => (
-                        <div key={index} className="text-xs">
-                          <div className="flex justify-between mb-1">
-                            <span>{skill}</span>
-                            <span>●●●●○</span>
+            <DraggableSection id="skills-section" className="relative mb-6">
+              <div>
+                <h3 className="text-lg font-bold mb-4 uppercase tracking-wide">Skills</h3>
+                <div className="space-y-4">
+                  {Object.entries(resumeData.skills.reduce((acc: { [key: string]: string[] }, skill) => {
+                    if (!acc[skill.category]) {
+                      acc[skill.category] = [];
+                    }
+                    acc[skill.category].push(skill.name);
+                    return acc;
+                  }, {})).map(([category, skills]) => (
+                    <div key={category}>
+                      <h4 className="font-semibold text-sm mb-2 opacity-90">{category}</h4>
+                      <div className="space-y-2">
+                        {skills.map((skill, index) => (
+                          <div key={index} className="text-xs">
+                            <div className="flex justify-between mb-1">
+                              <span>{skill}</span>
+                              <span>●●●●○</span>
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
+            </DraggableSection>
           )}
 
           {/* Education */}
           {resumeData.education.length > 0 && (
-            <div>
-              <h3 className="text-lg font-bold mb-4 uppercase tracking-wide">Education</h3>
-              <div className="space-y-3">
-                {resumeData.education.map((education) => (
-                  <div key={education.id} className="text-sm">
-                    <div className="font-semibold">{education.degree}</div>
-                    <div className="opacity-90">{education.institution}</div>
-                    <div className="text-xs opacity-75">{education.graduationYear}</div>
-                  </div>
-                ))}
+            <DraggableSection id="education-section" className="relative">
+              <div>
+                <h3 className="text-lg font-bold mb-4 uppercase tracking-wide">Education</h3>
+                <div className="space-y-3">
+                  {resumeData.education.map((education) => (
+                    <div key={education.id} className="text-sm">
+                      <div className="font-semibold">{education.degree}</div>
+                      <div className="opacity-90">{education.institution}</div>
+                      <div className="text-xs opacity-75">{education.graduationYear}</div>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
+            </DraggableSection>
           )}
         </div>
 
         {/* Main Content */}
         <div className="flex-1 p-8">
           {/* Header */}
-          <div className="mb-8">
-            <h1 
-              className="text-4xl font-bold mb-2"
-              style={{ 
-                color: styleConfig?.textColor || '#1F2937',
-                fontFamily: styleConfig?.fontFamily || 'Inter',
-                fontWeight: styleConfig?.headerStyle === 'bold' ? 'bold' : 'normal',
-                fontStyle: styleConfig?.headerStyle === 'italic' ? 'italic' : 'normal'
-              }}
-            >
-              {resumeData.personalInfo.name || "Your Name"}
-            </h1>
-            <p 
-              className="text-xl mb-4"
-              style={{ 
-                color: styleConfig?.secondaryColor || '#6B7280',
-                fontFamily: styleConfig?.fontFamily || 'Inter'
-              }}
-            >
-              {resumeData.personalInfo.title || "Your Professional Title"}
-            </p>
+          <DraggableSection id="header-section" className="relative mb-8">
+            <div>
+              <h1 
+                className="text-4xl font-bold mb-2"
+                style={{ 
+                  color: styleConfig?.textColor || '#1F2937',
+                  fontFamily: styleConfig?.fontFamily || 'Inter',
+                  fontWeight: styleConfig?.headerStyle === 'bold' ? 'bold' : 'normal',
+                  fontStyle: styleConfig?.headerStyle === 'italic' ? 'italic' : 'normal'
+                }}
+              >
+                {resumeData.personalInfo.name || "Your Name"}
+              </h1>
+              <p 
+                className="text-xl mb-4"
+                style={{ 
+                  color: styleConfig?.secondaryColor || '#6B7280',
+                  fontFamily: styleConfig?.fontFamily || 'Inter'
+                }}
+              >
+                {resumeData.personalInfo.title || "Your Professional Title"}
+              </p>
+            </div>
+          </DraggableSection>
             
-            {/* Professional Summary */}
-            {resumeData.personalInfo.summary && (
-              <div className="mt-6">
+          {/* Professional Summary */}
+          {resumeData.personalInfo.summary && (
+            <DraggableSection id="summary-section" className="relative mt-6 mb-8">
+              <div>
                 <h2 
                   className="text-lg font-semibold mb-3 flex items-center"
                   style={{ 
@@ -231,20 +332,21 @@ export function ResumeCanvas({ resumeData, template, styleConfig }: ResumeCanvas
                   {resumeData.personalInfo.summary}
                 </p>
               </div>
-            )}
-          </div>
+            </DraggableSection>
+          )}
 
           {/* Work Experience */}
           {resumeData.experiences.length > 0 && (
-            <div className="mb-8">
-              <h2 className="text-lg font-semibold text-gray-900 mb-6 flex items-center">
-                <span 
-                  className="w-4 h-4 rounded mr-3"
-                  style={{ backgroundColor: templateConfig.primaryColor }}
-                ></span>
-                Professional Experience
-              </h2>
-              <div className="space-y-6">
+            <DraggableSection id="experience-section" className="relative mb-8">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900 mb-6 flex items-center">
+                  <span 
+                    className="w-4 h-4 rounded mr-3"
+                    style={{ backgroundColor: templateConfig.primaryColor }}
+                  ></span>
+                  Professional Experience
+                </h2>
+                <div className="space-y-6">
                 {resumeData.experiences.map((experience, index) => (
                   <div key={experience.id} className="relative">
                     {index !== resumeData.experiences.length - 1 && (
@@ -296,24 +398,26 @@ export function ResumeCanvas({ resumeData, template, styleConfig }: ResumeCanvas
                     </div>
                   </div>
                 ))}
+                </div>
               </div>
-            </div>
+            </DraggableSection>
           )}
 
           {/* Custom Sections */}
           {(resumeData.customSections || []).filter(section => section.isVisible && section.items.length > 0).map((section) => (
-            <div key={section.id} className="mb-8">
-              <h2 
-                className="text-lg font-semibold mb-3 flex items-center"
-                style={{ 
-                  color: styleConfig?.textColor || '#1F2937',
-                  fontFamily: styleConfig?.fontFamily || 'Inter'
-                }}
-              >
-                <span 
-                  className="w-4 h-4 mr-3"
+            <DraggableSection key={section.id} id={`custom-section-${section.id}`} className="relative mb-8">
+              <div>
+                <h2 
+                  className="text-lg font-semibold mb-3 flex items-center"
                   style={{ 
-                    backgroundColor: templateConfig.primaryColor,
+                    color: styleConfig?.textColor || '#1F2937',
+                    fontFamily: styleConfig?.fontFamily || 'Inter'
+                  }}
+                >
+                  <span 
+                    className="w-4 h-4 mr-3"
+                    style={{ 
+                      backgroundColor: templateConfig.primaryColor,
                     borderRadius: `${styleConfig?.borderRadius || 4}px`
                   }}
                 ></span>
@@ -379,19 +483,17 @@ export function ResumeCanvas({ resumeData, template, styleConfig }: ResumeCanvas
                   </div>
                 ))}
               </div>
-            </div>
+              </div>
+            </DraggableSection>
           ))}
         </div>
       </div>
-    </div>
+    </TemplateWrapper>
   );
 
   // Creative Edge Template - Zigzag Layout with Modern Cards
   const CreativeEdgeTemplate = () => (
-    <div 
-      className="bg-gradient-to-br from-gray-50 to-white rounded-lg shadow-lg overflow-hidden resume-canvas"
-      style={{ width: "8.5in", minHeight: "11in" }}
-    >
+    <TemplateWrapper>
       {/* Creative Header with Geometric Shapes */}
       <div className="relative overflow-hidden">
         <div 
@@ -605,7 +707,7 @@ export function ResumeCanvas({ resumeData, template, styleConfig }: ResumeCanvas
           </div>
         ))}
       </div>
-    </div>
+    </TemplateWrapper>
   );
 
   const renderTemplate = () => {
@@ -1309,7 +1411,7 @@ export function ResumeCanvas({ resumeData, template, styleConfig }: ResumeCanvas
   );
 
   return (
-    <div className="flex-1 bg-gray-100 p-2 sm:p-4 lg:p-8 overflow-auto">
+    <div className="flex-1 bg-gray-100 p-2 sm:p-4 lg:p-8">
       <div className={`mx-auto ${isMobile ? 'max-w-sm' : 'max-w-2xl'}`}>
         <div className={`${isMobile ? 'transform scale-75 origin-top' : ''}`}>
           {renderTemplate()}
