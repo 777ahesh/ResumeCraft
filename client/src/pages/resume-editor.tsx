@@ -6,13 +6,14 @@ import { ResumeCanvas } from "@/components/resume-canvas";
 import { ResumeControlPanel } from "@/components/resume-control-panel";
 import { Button } from "@/components/ui/button";
 import { useResume, useUpdateResume } from "@/hooks/use-resumes";
-import { ArrowLeft, Save, Download, Undo, Redo, FileText, ChevronDown, Palette } from "lucide-react";
+import { ArrowLeft, Save, Download, Undo, Redo, FileText, ChevronDown, Palette, Menu } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 import type { ResumeData } from "@/types/resume";
 import { downloadResumePDF, resumePDFToBase64 } from "@/lib/pdf-generator";
 import { downloadResumeWord } from "@/lib/word-generator";
 import { saveResumeToLocalStorage, savePDFToLocalStorage } from "@/lib/resume-utils";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { 
   DropdownMenu, 
   DropdownMenuContent, 
@@ -26,12 +27,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Sheet,
+  SheetContent,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 
 export default function ResumeEditor() {
   const { user, loading } = useAuth();
   const [, setLocation] = useLocation();
   const { resumeId } = useParams();
   const { toast } = useToast();
+  const isMobile = useIsMobile();
   
   const { data: resume, isLoading } = useResume(resumeId || "");
   const updateResume = useUpdateResume();
@@ -39,6 +46,7 @@ export default function ResumeEditor() {
   const [resumeData, setResumeData] = useState<ResumeData | null>(null);
   const [hasChanges, setHasChanges] = useState(false);
   const [currentTemplate, setCurrentTemplate] = useState<string>("modern-professional");
+  const [showControlPanel, setShowControlPanel] = useState(!isMobile);
 
   const templateOptions = [
     { id: "modern-professional", name: "Modern Professional", description: "Two-column layout with sidebar" },
@@ -173,47 +181,73 @@ export default function ResumeEditor() {
       <Navbar />
       
       {/* Editor Header */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
+      <div className="bg-white border-b border-gray-200 px-3 sm:px-6 py-3 sm:py-4">
         <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-2 sm:space-x-4 min-w-0">
             <Button
               variant="ghost"
               onClick={() => setLocation("/dashboard")}
+              size={isMobile ? "sm" : "default"}
             >
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back
+              <ArrowLeft className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
+              {!isMobile && "Back"}
             </Button>
-            <div>
-              <h1 className="text-xl font-semibold text-gray-900">Resume Editor</h1>
-              <p className="text-sm text-gray-600">{resume.title}</p>
+            <div className="min-w-0">
+              <h1 className="text-base sm:text-xl font-semibold text-gray-900 truncate">
+                {isMobile ? "Editor" : "Resume Editor"}
+              </h1>
+              <p className="text-xs sm:text-sm text-gray-600 truncate">{resume.title}</p>
             </div>
           </div>
           
-          <div className="flex items-center space-x-3">
-            <Button variant="ghost" disabled>
-              <Undo className="mr-1 h-4 w-4" />
-              Undo
-            </Button>
-            <Button variant="ghost" disabled>
-              <Redo className="mr-1 h-4 w-4" />
-              Redo
-            </Button>
-            
-            <div className="h-6 w-px bg-gray-300"></div>
+          <div className="flex items-center space-x-1 sm:space-x-3">
+            {/* Mobile Control Panel Toggle */}
+            {isMobile && (
+              <Sheet>
+                <SheetTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    <Menu className="h-4 w-4" />
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="left" className="w-80 p-0">
+                  <ResumeControlPanel
+                    resumeData={resumeData}
+                    onChange={handleDataChange}
+                  />
+                </SheetContent>
+              </Sheet>
+            )}
+
+            {!isMobile && (
+              <>
+                <Button variant="ghost" disabled size="sm">
+                  <Undo className="mr-1 h-3 w-3 sm:h-4 sm:w-4" />
+                  Undo
+                </Button>
+                <Button variant="ghost" disabled size="sm">
+                  <Redo className="mr-1 h-3 w-3 sm:h-4 sm:w-4" />
+                  Redo
+                </Button>
+                
+                <div className="h-4 sm:h-6 w-px bg-gray-300"></div>
+              </>
+            )}
 
             {/* Template Selector */}
-            <div className="flex items-center gap-2">
-              <Palette className="h-4 w-4 text-gray-600" />
+            <div className="flex items-center gap-1 sm:gap-2">
+              <Palette className="h-3 w-3 sm:h-4 sm:w-4 text-gray-600" />
               <Select value={currentTemplate} onValueChange={handleTemplateChange}>
-                <SelectTrigger className="w-48">
+                <SelectTrigger className={`${isMobile ? 'w-32' : 'w-48'} text-xs sm:text-sm`}>
                   <SelectValue placeholder="Select template" />
                 </SelectTrigger>
                 <SelectContent>
                   {templateOptions.map((template) => (
                     <SelectItem key={template.id} value={template.id}>
                       <div className="flex flex-col">
-                        <span className="font-medium">{template.name}</span>
-                        <span className="text-xs text-gray-500">{template.description}</span>
+                        <span className="font-medium text-xs sm:text-sm">{template.name}</span>
+                        {!isMobile && (
+                          <span className="text-xs text-gray-500">{template.description}</span>
+                        )}
                       </div>
                     </SelectItem>
                   ))}
@@ -221,23 +255,24 @@ export default function ResumeEditor() {
               </Select>
             </div>
 
-            <div className="h-6 w-px bg-gray-300"></div>
+            {!isMobile && <div className="h-4 sm:h-6 w-px bg-gray-300"></div>}
             
             <Button
               variant="outline"
               onClick={handleSave}
               disabled={!hasChanges || updateResume.isPending}
+              size={isMobile ? "sm" : "default"}
             >
-              <Save className="mr-1 h-4 w-4" />
-              {updateResume.isPending ? "Saving..." : "Save"}
+              <Save className="mr-1 h-3 w-3 sm:h-4 sm:w-4" />
+              {updateResume.isPending ? (isMobile ? "..." : "Saving...") : (isMobile ? "Save" : "Save")}
             </Button>
             
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button className="bg-primary hover:bg-primary/90">
-                  <Download className="mr-1 h-4 w-4" />
-                  Download
-                  <ChevronDown className="ml-1 h-3 w-3" />
+                <Button className="bg-primary hover:bg-primary/90" size={isMobile ? "sm" : "default"}>
+                  <Download className="mr-1 h-3 w-3 sm:h-4 sm:w-4" />
+                  {!isMobile && "Download"}
+                  <ChevronDown className="ml-1 h-2 w-2 sm:h-3 sm:w-3" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
@@ -257,10 +292,12 @@ export default function ResumeEditor() {
 
       {/* Editor Content */}
       <div className="flex-1 flex overflow-hidden">
-        <ResumeControlPanel
-          resumeData={resumeData}
-          onChange={handleDataChange}
-        />
+        {!isMobile && (
+          <ResumeControlPanel
+            resumeData={resumeData}
+            onChange={handleDataChange}
+          />
+        )}
         <ResumeCanvas
           resumeData={resumeData}
           template={currentTemplate}

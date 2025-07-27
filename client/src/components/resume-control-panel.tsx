@@ -7,6 +7,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Plus, Trash2, ChevronDown, ChevronRight } from "lucide-react";
 import { useState } from "react";
 import type { ResumeData, WorkExperience, Education, Skill } from "@/types/resume";
+import { useIsMobile } from "@/hooks/use-mobile";
 // Browser-compatible UUID generation
 const generateId = () => {
   if (typeof window !== 'undefined' && window.crypto && window.crypto.randomUUID) {
@@ -25,12 +26,13 @@ interface ResumeControlPanelProps {
 }
 
 export function ResumeControlPanel({ resumeData, onChange }: ResumeControlPanelProps) {
+  const isMobile = useIsMobile();
   const [openSections, setOpenSections] = useState({
     personal: true,
-    summary: true,
-    experience: true,
-    education: true,
-    skills: true,
+    summary: !isMobile,
+    experience: !isMobile,
+    education: !isMobile,
+    skills: !isMobile,
   });
 
   const toggleSection = (section: keyof typeof openSections) => {
@@ -139,9 +141,9 @@ export function ResumeControlPanel({ resumeData, onChange }: ResumeControlPanelP
   };
 
   return (
-    <div className="w-80 bg-gray-50 border-r border-gray-200 overflow-y-auto">
-      <div className="p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Edit Resume</h2>
+    <div className={`${isMobile ? 'w-full' : 'w-80'} bg-gray-50 border-r border-gray-200 overflow-y-auto`}>
+      <div className={`${isMobile ? 'p-4' : 'p-6'}`}>
+        <h2 className={`${isMobile ? 'text-base' : 'text-lg'} font-semibold text-gray-900 mb-4`}>Edit Resume</h2>
         
         <div className="space-y-4">
           {/* Personal Information */}

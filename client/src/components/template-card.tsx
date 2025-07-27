@@ -111,9 +111,9 @@ export function TemplateCard({ template }: TemplateCardProps) {
 
   return (
     <Card className="overflow-hidden hover:shadow-lg transition-all cursor-pointer group">
-      <div className={`h-80 bg-gradient-to-br ${getGradientClass(template.category)} relative p-6`}>
+      <div className={`h-64 sm:h-72 lg:h-80 bg-gradient-to-br ${getGradientClass(template.category)} relative p-4 sm:p-6`}>
         {/* Template Preview */}
-        <div className="bg-white rounded shadow-sm p-4 h-full relative">
+        <div className="bg-white rounded shadow-sm p-3 sm:p-4 h-full relative">
           {template.category === "professional" && (
             <div className="flex items-center mb-3">
               <div className={`w-12 h-12 ${getAccentColor(template.category)} rounded-full mr-3`}></div>
@@ -186,15 +186,16 @@ export function TemplateCard({ template }: TemplateCardProps) {
             className="opacity-0 group-hover:opacity-100 transition-opacity"
             onClick={handleUseTemplate}
             disabled={createResume.isPending}
+            size="sm"
           >
             {createResume.isPending ? "Creating..." : "Use Template"}
           </Button>
         </div>
       </div>
       
-      <CardContent className="p-4">
-        <h3 className="font-semibold text-gray-900 mb-1">{template.name}</h3>
-        <p className="text-sm text-gray-600">{template.description}</p>
+      <CardContent className="p-3 sm:p-4">
+        <h3 className="text-sm sm:text-base font-semibold text-gray-900 mb-1">{template.name}</h3>
+        <p className="text-xs sm:text-sm text-gray-600">{template.description}</p>
       </CardContent>
     </Card>
   );

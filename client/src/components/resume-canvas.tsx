@@ -1,4 +1,5 @@
 import type { ResumeData } from "@/types/resume";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface ResumeCanvasProps {
   resumeData: ResumeData;
@@ -6,6 +7,8 @@ interface ResumeCanvasProps {
 }
 
 export function ResumeCanvas({ resumeData, template }: ResumeCanvasProps) {
+  const isMobile = useIsMobile();
+  
   const getTemplateConfig = (templateId: string) => {
     const configs = {
       "modern-professional": {
@@ -996,9 +999,11 @@ export function ResumeCanvas({ resumeData, template }: ResumeCanvasProps) {
   };
 
   return (
-    <div className="flex-1 bg-gray-100 p-8 overflow-auto">
-      <div className="max-w-2xl mx-auto">
-        {renderTemplate()}
+    <div className="flex-1 bg-gray-100 p-2 sm:p-4 lg:p-8 overflow-auto">
+      <div className={`mx-auto ${isMobile ? 'max-w-sm' : 'max-w-2xl'}`}>
+        <div className={`${isMobile ? 'transform scale-75 origin-top' : ''}`}>
+          {renderTemplate()}
+        </div>
       </div>
     </div>
   );

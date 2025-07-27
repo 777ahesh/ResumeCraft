@@ -93,18 +93,18 @@ export function Dashboard() {
     <div className="min-h-screen bg-gray-50">
       <Navbar />
       
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">My Resumes</h1>
-            <p className="text-gray-600">Create and manage your professional resumes</p>
+          <div className="mb-6 sm:mb-8">
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">My Resumes</h1>
+            <p className="text-sm sm:text-base text-gray-600">Create and manage your professional resumes</p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
             {/* Create New Resume Card */}
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
@@ -112,15 +112,15 @@ export function Dashboard() {
               transition={{ duration: 0.5, delay: 0.1 }}
             >
               <Card 
-                className="border-2 border-dashed border-gray-300 hover:border-primary hover:bg-primary/5 transition-all cursor-pointer group h-80"
+                className="border-2 border-dashed border-gray-300 hover:border-primary hover:bg-primary/5 transition-all cursor-pointer group h-64 sm:h-72 lg:h-80"
                 onClick={handleCreateNew}
               >
-                <CardContent className="flex flex-col items-center justify-center text-center h-full p-8">
-                  <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mb-4 group-hover:bg-primary/20 transition-colors">
-                    <Plus className="h-8 w-8 text-primary" />
+                <CardContent className="flex flex-col items-center justify-center text-center h-full p-4 sm:p-6 lg:p-8">
+                  <div className="w-12 h-12 sm:w-14 sm:h-14 lg:w-16 lg:h-16 bg-primary/10 rounded-full flex items-center justify-center mb-3 sm:mb-4 group-hover:bg-primary/20 transition-colors">
+                    <Plus className="h-6 w-6 sm:h-7 sm:w-7 lg:h-8 lg:w-8 text-primary" />
                   </div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">Create New Resume</h3>
-                  <p className="text-sm text-gray-600">Start building a new resume from scratch</p>
+                  <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-2">Create New Resume</h3>
+                  <p className="text-xs sm:text-sm text-gray-600">Start building a new resume from scratch</p>
                 </CardContent>
               </Card>
             </motion.div>
@@ -135,16 +135,16 @@ export function Dashboard() {
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ duration: 0.5, delay: 0.2 + index * 0.1 }}
                 >
-                  <Card className="h-80 animate-pulse">
-                    <div className="h-48 bg-gray-200 rounded-t-lg"></div>
-                    <CardContent className="p-4">
-                      <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
-                      <div className="h-3 bg-gray-200 rounded w-1/2 mb-4"></div>
+                  <Card className="h-64 sm:h-72 lg:h-80 animate-pulse">
+                    <div className="h-32 sm:h-40 lg:h-48 bg-gray-200 rounded-t-lg"></div>
+                    <CardContent className="p-3 sm:p-4">
+                      <div className="h-3 sm:h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+                      <div className="h-2 sm:h-3 bg-gray-200 rounded w-1/2 mb-3 sm:mb-4"></div>
                       <div className="flex justify-between items-center">
-                        <div className="h-3 bg-gray-200 rounded w-1/3"></div>
-                        <div className="flex space-x-2">
-                          <div className="h-6 w-6 bg-gray-200 rounded"></div>
-                          <div className="h-6 w-6 bg-gray-200 rounded"></div>
+                        <div className="h-2 sm:h-3 bg-gray-200 rounded w-1/3"></div>
+                        <div className="flex space-x-1 sm:space-x-2">
+                          <div className="h-5 w-5 sm:h-6 sm:w-6 bg-gray-200 rounded"></div>
+                          <div className="h-5 w-5 sm:h-6 sm:w-6 bg-gray-200 rounded"></div>
                         </div>
                       </div>
                     </CardContent>
@@ -159,19 +159,19 @@ export function Dashboard() {
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ duration: 0.5, delay: 0.2 + index * 0.1 }}
                 >
-                  <Card className="hover:shadow-lg transition-shadow cursor-pointer group h-80">
-                    <div className="h-48 bg-gradient-to-br from-blue-50 to-blue-100 relative overflow-hidden rounded-t-lg">
+                  <Card className="hover:shadow-lg transition-shadow cursor-pointer group h-64 sm:h-72 lg:h-80">
+                    <div className="h-32 sm:h-40 lg:h-48 bg-gradient-to-br from-blue-50 to-blue-100 relative overflow-hidden rounded-t-lg">
                       {/* Miniature resume preview */}
-                      <div className="absolute inset-4 bg-white rounded shadow-sm p-3">
-                        <div className="w-6 h-6 bg-blue-400 rounded-full mb-2"></div>
+                      <div className="absolute inset-2 sm:inset-3 lg:inset-4 bg-white rounded shadow-sm p-2 sm:p-3">
+                        <div className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 bg-blue-400 rounded-full mb-1 sm:mb-2"></div>
                         <div className="space-y-1">
-                          <div className="h-1 bg-gray-300 rounded w-3/4"></div>
-                          <div className="h-1 bg-gray-200 rounded w-1/2"></div>
-                          <div className="h-1 bg-gray-200 rounded w-full mt-2"></div>
-                          <div className="h-1 bg-gray-200 rounded w-5/6"></div>
+                          <div className="h-0.5 sm:h-1 bg-gray-300 rounded w-3/4"></div>
+                          <div className="h-0.5 sm:h-1 bg-gray-200 rounded w-1/2"></div>
+                          <div className="h-0.5 sm:h-1 bg-gray-200 rounded w-full mt-1 sm:mt-2"></div>
+                          <div className="h-0.5 sm:h-1 bg-gray-200 rounded w-5/6"></div>
                         </div>
                       </div>
-                      <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="absolute top-1 right-1 sm:top-2 sm:right-2 opacity-0 group-hover:opacity-100 transition-opacity">
                         <Button 
                           size="sm" 
                           variant="secondary"
@@ -179,45 +179,46 @@ export function Dashboard() {
                             e.stopPropagation();
                             handleEditResume(resume.id);
                           }}
+                          className="h-6 w-6 sm:h-8 sm:w-8 p-0 sm:p-1"
                         >
-                          <Edit className="h-4 w-4" />
+                          <Edit className="h-3 w-3 sm:h-4 sm:w-4" />
                         </Button>
                       </div>
                     </div>
                     
-                    <CardContent className="p-4">
-                      <h3 className="font-medium text-gray-900 mb-1 truncate">{resume.title}</h3>
-                      <p className="text-sm text-gray-600 mb-2 flex items-center">
-                        <Calendar className="h-3 w-3 mr-1" />
-                        Last edited {formatDistanceToNow(new Date(resume.updatedAt), { addSuffix: true })}
+                    <CardContent className="p-3 sm:p-4">
+                      <h3 className="text-sm sm:text-base font-medium text-gray-900 mb-1 truncate">{resume.title}</h3>
+                      <p className="text-xs sm:text-sm text-gray-600 mb-2 flex items-center">
+                        <Calendar className="h-2 w-2 sm:h-3 sm:w-3 mr-1" />
+                        <span className="truncate">Last edited {formatDistanceToNow(new Date(resume.updatedAt), { addSuffix: true })}</span>
                       </p>
                       
                       <div className="flex items-center justify-between">
                         <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
                           Template
                         </span>
-                        <div className="flex space-x-2">
+                        <div className="flex space-x-1 sm:space-x-2">
                           <Button 
                             size="sm" 
                             variant="ghost" 
-                            className="h-8 w-8 p-0"
+                            className="h-6 w-6 sm:h-8 sm:w-8 p-0"
                             onClick={(e) => {
                               e.stopPropagation();
                               handleDownloadPDF(resume.id);
                             }}
                           >
-                            <Download className="h-4 w-4" />
+                            <Download className="h-3 w-3 sm:h-4 sm:w-4" />
                           </Button>
                           <Button 
                             size="sm" 
                             variant="ghost" 
-                            className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
+                            className="h-6 w-6 sm:h-8 sm:w-8 p-0 text-red-600 hover:text-red-700"
                             onClick={(e) => {
                               e.stopPropagation();
                               handleDeleteResume(resume.id);
                             }}
                           >
-                            <Trash2 className="h-4 w-4" />
+                            <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
                           </Button>
                         </div>
                       </div>
