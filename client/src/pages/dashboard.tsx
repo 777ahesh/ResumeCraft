@@ -5,14 +5,20 @@ import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Navbar } from "@/components/navbar";
-import { useResumes } from "@/hooks/use-resumes";
+import { useResumes, useDeleteResume } from "@/hooks/use-resumes";
+import { useToast } from "@/hooks/use-toast";
 import { Plus, Edit, Download, Trash2, Calendar } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { generateResumePDF } from "@/lib/pdf-generator";
+import { apiRequest } from "@/lib/queryClient";
+import { saveAs } from "file-saver";
 
-export default function Dashboard() {
+export function Dashboard() {
   const { user, loading } = useAuth();
   const [, setLocation] = useLocation();
-  const { resumes, isLoading } = useResumes();
+  const { data: resumes, isLoading } = useResumes();
+  const { toast } = useToast();
+  const deleteResumeMutation = useDeleteResume();
 
   useEffect(() => {
     if (!loading && !user) {
@@ -38,6 +44,49 @@ export default function Dashboard() {
 
   const handleEditResume = (resumeId: string) => {
     setLocation(`/editor/${resumeId}`);
+  };
+
+  const handleDownloadPDF = async (resumeId: string) => {
+    try {
+      // Fetch the resume data from MongoDB
+      const response = await apiRequest("GET", `/api/resumes/${resumeId}`);
+      const resumeData = await response.json();
+
+      // Generate PDF
+      const pdfBlob = await generateResumePDF(resumeData.data, resumeData.template);
+      
+      // Download the PDF
+      saveAs(pdfBlob, `${resumeData.data.personalInfo.fullName || 'resume'}-resume.pdf`);
+      
+      toast({
+        title: "PDF Downloaded",
+        description: "Your resume has been downloaded successfully.",
+      });
+    } catch (error) {
+      console.error("Error downloading PDF:", error);
+      toast({
+        title: "Download Failed",
+        description: "Failed to download the PDF. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeleteResume = async (resumeId: string) => {
+    try {
+      await deleteResumeMutation.mutateAsync(resumeId);
+      toast({
+        title: "Resume Deleted",
+        description: "Your resume has been deleted successfully.",
+      });
+    } catch (error) {
+      console.error("Error deleting resume:", error);
+      toast({
+        title: "Delete Failed",
+        description: "Failed to delete the resume. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -148,10 +197,26 @@ export default function Dashboard() {
                           Template
                         </span>
                         <div className="flex space-x-2">
-                          <Button size="sm" variant="ghost" className="h-8 w-8 p-0">
+                          <Button 
+                            size="sm" 
+                            variant="ghost" 
+                            className="h-8 w-8 p-0"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDownloadPDF(resume.id);
+                            }}
+                          >
                             <Download className="h-4 w-4" />
                           </Button>
-                          <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-red-600 hover:text-red-700">
+                          <Button 
+                            size="sm" 
+                            variant="ghost" 
+                            className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteResume(resume.id);
+                            }}
+                          >
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
@@ -201,3 +266,5 @@ export default function Dashboard() {
     </div>
   );
 }
+
+export default Dashboard;

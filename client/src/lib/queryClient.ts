@@ -1,18 +1,29 @@
-import { QueryClient, QueryFunction } from "@tanstack/react-query";
-import { getAuthHeaders } from "./auth";
+import { QueryClient } from "@tanstack/react-query";
 
 const API_BASE_URL = "";
 
+// Simple function to get auth token
+const getToken = (): string | null => {
+  return localStorage.getItem("token");
+};
+
+// Unified API request function that ALWAYS includes auth token
 export async function apiRequest(
   method: string,
   path: string,
   body?: any
 ): Promise<Response> {
   const url = `${API_BASE_URL}${path}`;
+  
+  // Always include Authorization header if token exists
+  const token = getToken();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    ...getAuthHeaders(),
   };
+  
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
 
   const config: RequestInit = {
     method,
@@ -33,35 +44,10 @@ export async function apiRequest(
   return response;
 }
 
-async function throwIfResNotOk(res: Response) {
-  if (!res.ok) {
-    const text = (await res.text()) || res.statusText;
-    throw new Error(`${res.status}: ${text}`);
-  }
-}
-
-type UnauthorizedBehavior = "returnNull" | "throw";
-export const getQueryFn: <T>(options: {
-  on401: UnauthorizedBehavior;
-}) => QueryFunction<T> =
-  ({ on401: unauthorizedBehavior }) =>
-  async ({ queryKey }) => {
-    const res = await fetch(queryKey.join("/") as string, {
-      credentials: "include",
-    });
-
-    if (unauthorizedBehavior === "returnNull" && res.status === 401) {
-      return null;
-    }
-
-    await throwIfResNotOk(res);
-    return await res.json();
-  };
-
+// Simple QueryClient with no default queryFn - forces explicit queryFn usage
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      queryFn: getQueryFn({ on401: "throw" }),
       refetchInterval: false,
       refetchOnWindowFocus: false,
       staleTime: Infinity,

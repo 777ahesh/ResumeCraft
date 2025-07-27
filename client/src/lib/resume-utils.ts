@@ -158,7 +158,12 @@ export const calculateCompletionPercentage = (data: ResumeData): number => {
 export const saveResumeToLocalStorage = (resumeId: string, data: ResumeData): void => {
   try {
     const key = `resume_backup_${resumeId}`;
-    localStorage.setItem(key, JSON.stringify(data));
+    const backupData = {
+      resumeData: data,
+      timestamp: new Date().toISOString(),
+      version: '1.0'
+    };
+    localStorage.setItem(key, JSON.stringify(backupData));
   } catch (error) {
     console.warn("Failed to save resume backup to localStorage:", error);
   }
@@ -169,7 +174,10 @@ export const loadResumeFromLocalStorage = (resumeId: string): ResumeData | null 
   try {
     const key = `resume_backup_${resumeId}`;
     const data = localStorage.getItem(key);
-    return data ? JSON.parse(data) : null;
+    if (!data) return null;
+    
+    const backupData = JSON.parse(data);
+    return backupData.resumeData || backupData; // Handle both new and legacy formats
   } catch (error) {
     console.warn("Failed to load resume backup from localStorage:", error);
     return null;
@@ -183,6 +191,94 @@ export const clearResumeBackup = (resumeId: string): void => {
     localStorage.removeItem(key);
   } catch (error) {
     console.warn("Failed to clear resume backup from localStorage:", error);
+  }
+};
+
+// Save PDF to localStorage as base64
+export const savePDFToLocalStorage = (resumeId: string, pdfBase64: string): void => {
+  try {
+    const key = `resume_pdf_${resumeId}`;
+    const pdfData = {
+      pdfBase64,
+      timestamp: new Date().toISOString(),
+      size: pdfBase64.length
+    };
+    localStorage.setItem(key, JSON.stringify(pdfData));
+  } catch (error) {
+    console.warn("Failed to save PDF to localStorage:", error);
+  }
+};
+
+// Load PDF from localStorage
+export const loadPDFFromLocalStorage = (resumeId: string): string | null => {
+  try {
+    const key = `resume_pdf_${resumeId}`;
+    const data = localStorage.getItem(key);
+    if (!data) return null;
+    
+    const pdfData = JSON.parse(data);
+    return pdfData.pdfBase64;
+  } catch (error) {
+    console.warn("Failed to load PDF from localStorage:", error);
+    return null;
+  }
+};
+
+// Get all locally stored resumes for a user
+export const getLocalStorageResumes = (userId: string): Array<{id: string, timestamp: string}> => {
+  try {
+    const resumes = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key?.startsWith('resume_backup_')) {
+        const resumeId = key.replace('resume_backup_', '');
+        const data = localStorage.getItem(key);
+        if (data) {
+          const backupData = JSON.parse(data);
+          resumes.push({
+            id: resumeId,
+            timestamp: backupData.timestamp || 'Unknown'
+          });
+        }
+      }
+    }
+    return resumes;
+  } catch (error) {
+    console.warn("Failed to get localStorage resumes:", error);
+    return [];
+  }
+};
+
+// Clean old localStorage backups (older than 30 days)
+export const cleanOldLocalStorageBackups = (): void => {
+  try {
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    
+    const keysToRemove = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key?.startsWith('resume_backup_') || key?.startsWith('resume_pdf_')) {
+        const data = localStorage.getItem(key);
+        if (data) {
+          try {
+            const backupData = JSON.parse(data);
+            const timestamp = new Date(backupData.timestamp);
+            if (timestamp < thirtyDaysAgo) {
+              keysToRemove.push(key);
+            }
+          } catch {
+            // If we can't parse it, it's probably old format, remove it
+            keysToRemove.push(key);
+          }
+        }
+      }
+    }
+    
+    keysToRemove.forEach(key => localStorage.removeItem(key));
+    console.log(`Cleaned ${keysToRemove.length} old localStorage backups`);
+  } catch (error) {
+    console.warn("Failed to clean old localStorage backups:", error);
   }
 };
 

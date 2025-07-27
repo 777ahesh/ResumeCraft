@@ -6,10 +6,19 @@ import { ResumeCanvas } from "@/components/resume-canvas";
 import { ResumeControlPanel } from "@/components/resume-control-panel";
 import { Button } from "@/components/ui/button";
 import { useResume, useUpdateResume } from "@/hooks/use-resumes";
-import { ArrowLeft, Save, Download, Undo, Redo } from "lucide-react";
+import { ArrowLeft, Save, Download, Undo, Redo, FileText, ChevronDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 import type { ResumeData } from "@/types/resume";
+import { downloadResumePDF, resumePDFToBase64 } from "@/lib/pdf-generator";
+import { downloadResumeWord } from "@/lib/word-generator";
+import { saveResumeToLocalStorage, savePDFToLocalStorage } from "@/lib/resume-utils";
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuTrigger 
+} from "@/components/ui/dropdown-menu";
 
 export default function ResumeEditor() {
   const { user, loading } = useAuth();
@@ -49,12 +58,20 @@ export default function ResumeEditor() {
 
   const handleSave = async () => {
     try {
+      // Generate and store PDF as base64
+      const pdfBase64 = await resumePDFToBase64(resumeData, resume.templateId);
+      
       await updateResume.mutateAsync({
         id: resume.id,
         data: {
           resumeData,
+          pdfData: pdfBase64, // Store PDF as base64 in database
         },
       });
+      
+      // Also save to localStorage as backup
+      saveResumeToLocalStorage(resume.id, resumeData);
+      savePDFToLocalStorage(resume.id, pdfBase64);
       
       setHasChanges(false);
       toast({
@@ -73,6 +90,50 @@ export default function ResumeEditor() {
   const handleDataChange = (newData: ResumeData) => {
     setResumeData(newData);
     setHasChanges(true);
+  };
+
+  const handleDownloadPDF = async () => {
+    if (!resumeData) return;
+    
+    try {
+      await downloadResumePDF(
+        resumeData,
+        resume.title || "resume",
+        resume.templateId
+      );
+      toast({
+        title: "Success!",
+        description: "PDF downloaded successfully.",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to download PDF. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDownloadWord = async () => {
+    if (!resumeData) return;
+    
+    try {
+      await downloadResumeWord(
+        resumeData,
+        resume.title || "resume",
+        resume.templateId
+      );
+      toast({
+        title: "Success!",
+        description: "Word document downloaded successfully.",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to download Word document. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -117,10 +178,25 @@ export default function ResumeEditor() {
               {updateResume.isPending ? "Saving..." : "Save"}
             </Button>
             
-            <Button className="bg-primary hover:bg-primary/90">
-              <Download className="mr-1 h-4 w-4" />
-              Download PDF
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button className="bg-primary hover:bg-primary/90">
+                  <Download className="mr-1 h-4 w-4" />
+                  Download
+                  <ChevronDown className="ml-1 h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={handleDownloadPDF}>
+                  <FileText className="mr-2 h-4 w-4" />
+                  Download as PDF
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleDownloadWord}>
+                  <FileText className="mr-2 h-4 w-4" />
+                  Download as Word
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       </div>

@@ -291,4 +291,22 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new MemStorage();
+// Import MongoDB storage
+import { MongoStorage } from './mongo-storage';
+
+// Create storage instance with fallback to in-memory storage
+export const createStorage = (): IStorage => {
+  const mongoConnectionString = process.env.MONGODB_URL || 'mongodb://localhost:27017/resumebuilder';
+  
+  // Try MongoDB first, fallback to in-memory storage if MongoDB unavailable
+  try {
+    console.log('Using MongoDB storage');
+    return new MongoStorage(mongoConnectionString);
+  } catch (error) {
+    console.warn('MongoDB not available, falling back to in-memory storage');
+    return new MemStorage();
+  }
+};
+
+// Use MongoDB storage by default
+export const storage = createStorage();

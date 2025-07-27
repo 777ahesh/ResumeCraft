@@ -41,16 +41,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      const response = await apiRequest("GET", "/api/auth/me", null, {
-        Authorization: `Bearer ${token}`,
-      });
-
-      if (response.ok) {
-        const userData = await response.json();
-        setUser(userData);
-      } else {
-        localStorage.removeItem("token");
-      }
+      const response = await apiRequest("GET", "/api/auth/me");
+      const userData = await response.json();
+      setUser(userData);
     } catch (error) {
       console.error("Auth check failed:", error);
       localStorage.removeItem("token");
@@ -78,7 +71,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     lastName: string;
   }) => {
     const response = await apiRequest("POST", "/api/auth/register", data);
-
     const responseData = await response.json();
     localStorage.setItem("token", responseData.token);
     setUser(responseData.user);

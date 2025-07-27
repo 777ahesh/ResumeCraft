@@ -1,39 +1,56 @@
-import type { Express } from "express";
+import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertUserSchema, loginSchema, insertResumeSchema, updateResumeSchema, insertTemplateSchema } from "@shared/schema";
+import { insertUserSchema, loginSchema, insertResumeSchema, updateResumeSchema, insertTemplateSchema, type InsertResume, type InsertTemplate } from "@shared/schema";
 import jwt from "jsonwebtoken";
 import { z } from "zod";
 
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
 
+// Extend Express Request type to include user
+interface AuthenticatedRequest extends Request {
+  user?: {
+    id: string;
+    email: string;
+  };
+}
+
 // Middleware to verify JWT token
-const authenticateToken = (req: any, res: any, next: any) => {
+const authenticateToken = (req: AuthenticatedRequest, res: Response, next: any) => {
   const authHeader = req.headers['authorization'];
+  console.log('Auth header received:', authHeader);
   const token = authHeader && authHeader.split(' ')[1];
+  console.log('Extracted token:', token ? 'present' : 'missing');
 
   if (!token) {
+    console.log('No token provided');
     return res.status(401).json({ message: 'Access token required' });
   }
 
   jwt.verify(token, JWT_SECRET, (err: any, user: any) => {
     if (err) {
+      console.error('JWT verification error:', err);
       return res.status(403).json({ message: 'Invalid token' });
     }
+    console.log('JWT verified successfully for user:', user.id);
     req.user = user;
     next();
   });
 };
 
 // Middleware to verify admin role
-const requireAdmin = async (req: any, res: any, next: any) => {
+const requireAdmin = async (req: AuthenticatedRequest, res: Response, next: any) => {
   try {
+    if (!req.user) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
     const user = await storage.getUser(req.user.id);
     if (!user || !user.isAdmin) {
       return res.status(403).json({ message: 'Admin access required' });
     }
     next();
   } catch (error) {
+    console.error('Admin check error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 };
@@ -101,8 +118,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/auth/me", authenticateToken, async (req, res) => {
+  app.get("/api/auth/me", authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
     try {
+      if (!req.user) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      
       const user = await storage.getUser(req.user.id);
       if (!user) {
         return res.status(404).json({ message: "User not found" });
@@ -116,22 +137,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
         isAdmin: user.isAdmin
       });
     } catch (error) {
+      console.error('Get user error:', error);
       res.status(500).json({ message: "Server error" });
     }
   });
 
   // Resume routes
-  app.get("/api/resumes", authenticateToken, async (req, res) => {
+  app.get("/api/resumes", authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
     try {
+      if (!req.user) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
       const resumes = await storage.getUserResumes(req.user.id);
       res.json(resumes);
     } catch (error) {
+      console.error('Get resumes error:', error);
       res.status(500).json({ message: "Server error" });
     }
   });
 
-  app.get("/api/resumes/:id", authenticateToken, async (req, res) => {
+  app.get("/api/resumes/:id", authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
     try {
+      if (!req.user) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      
       const resume = await storage.getResume(req.params.id);
       if (!resume) {
         return res.status(404).json({ message: "Resume not found" });
@@ -143,20 +173,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json(resume);
     } catch (error) {
+      console.error('Get resume error:', error);
       res.status(500).json({ message: "Server error" });
     }
   });
 
-  app.post("/api/resumes", authenticateToken, async (req, res) => {
+  app.post("/api/resumes", authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const resumeData = insertResumeSchema.parse({
-        ...req.body,
-        userId: req.user.id
-      });
+      if (!req.user) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
       
+      const bodyWithDefaults = {
+        ...req.body,
+        userId: req.user.id,
+        resumeData: req.body.resumeData || {
+          personalInfo: { name: "", title: "", email: "", phone: "", location: "", summary: "" },
+          experiences: [],
+          education: [],
+          skills: []
+        }
+      };
+      
+      const resumeData = insertResumeSchema.parse(bodyWithDefaults) as InsertResume;
       const resume = await storage.createResume(resumeData);
       res.status(201).json(resume);
     } catch (error) {
+      console.error('Create resume error:', error);
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: "Validation error", errors: error.errors });
       }
@@ -164,8 +207,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch("/api/resumes/:id", authenticateToken, async (req, res) => {
+  app.patch("/api/resumes/:id", authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
     try {
+      if (!req.user) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      
       const resume = await storage.getResume(req.params.id);
       if (!resume) {
         return res.status(404).json({ message: "Resume not found" });
@@ -180,6 +227,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json(updatedResume);
     } catch (error) {
+      console.error('Update resume error:', error);
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: "Validation error", errors: error.errors });
       }
@@ -187,8 +235,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/resumes/:id", authenticateToken, async (req, res) => {
+  app.delete("/api/resumes/:id", authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
     try {
+      if (!req.user) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      
       const resume = await storage.getResume(req.params.id);
       if (!resume) {
         return res.status(404).json({ message: "Resume not found" });
@@ -201,6 +253,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.deleteResume(req.params.id);
       res.json({ message: "Resume deleted successfully" });
     } catch (error) {
+      console.error('Delete resume error:', error);
       res.status(500).json({ message: "Server error" });
     }
   });
@@ -228,12 +281,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Admin template management
-  app.post("/api/admin/templates", authenticateToken, requireAdmin, async (req, res) => {
+  app.post("/api/admin/templates", authenticateToken, requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const templateData = insertTemplateSchema.parse(req.body);
+      const bodyWithDefaults = {
+        ...req.body,
+        templateData: req.body.templateData || {
+          layout: "modern",
+          colors: { primary: "#3B82F6", secondary: "#6B7280" },
+          fonts: { heading: "Inter", body: "Inter" }
+        }
+      };
+      
+      const templateData = insertTemplateSchema.parse(bodyWithDefaults) as InsertTemplate;
       const template = await storage.createTemplate(templateData);
       res.status(201).json(template);
     } catch (error) {
+      console.error('Create template error:', error);
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: "Validation error", errors: error.errors });
       }
@@ -241,7 +304,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch("/api/admin/templates/:id", authenticateToken, requireAdmin, async (req, res) => {
+  app.patch("/api/admin/templates/:id", authenticateToken, requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const updates = req.body;
       const template = await storage.updateTemplate(req.params.id, updates);
@@ -250,11 +313,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       res.json(template);
     } catch (error) {
+      console.error('Update template error:', error);
       res.status(500).json({ message: "Server error" });
     }
   });
 
-  app.delete("/api/admin/templates/:id", authenticateToken, requireAdmin, async (req, res) => {
+  app.delete("/api/admin/templates/:id", authenticateToken, requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const success = await storage.deleteTemplate(req.params.id);
       if (!success) {
@@ -262,12 +326,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       res.json({ message: "Template deleted successfully" });
     } catch (error) {
+      console.error('Delete template error:', error);
       res.status(500).json({ message: "Server error" });
     }
   });
 
   // Admin analytics routes
-  app.get("/api/admin/analytics", authenticateToken, requireAdmin, async (req, res) => {
+  app.get("/api/admin/analytics", authenticateToken, requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const [totalUsers, dailySignups, dailyLogins, totalResumes] = await Promise.all([
         storage.getTotalUsers(),
@@ -283,6 +348,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         totalResumes
       });
     } catch (error) {
+      console.error('Get analytics error:', error);
       res.status(500).json({ message: "Server error" });
     }
   });

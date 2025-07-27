@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Navbar } from "@/components/navbar";
+import { TemplateDialog } from "@/components/template-dialog";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -64,12 +65,20 @@ export default function AdminPanel() {
   const { data: analytics, isLoading: analyticsLoading } = useQuery<AnalyticsData>({
     queryKey: ["/api/admin/analytics"],
     enabled: user?.isAdmin,
+    queryFn: async () => {
+      const response = await apiRequest("GET", "/api/admin/analytics");
+      return response.json();
+    },
   });
 
   // Fetch all templates for admin management
   const { data: allTemplates, isLoading: templatesLoading } = useQuery<ResumeTemplate[]>({
     queryKey: ["/api/templates"],
     enabled: user?.isAdmin,
+    queryFn: async () => {
+      const response = await apiRequest("GET", "/api/templates");
+      return response.json();
+    },
   });
 
   // Mock users data (in real app, this would come from API)
@@ -381,10 +390,7 @@ export default function AdminPanel() {
                   <TabsContent value="templates" className="space-y-4">
                     <div className="flex justify-between items-center">
                       <h2 className="text-lg font-semibold text-gray-900">Template Management</h2>
-                      <Button onClick={() => toast({ title: "Feature coming soon!", description: "Template creation will be available soon." })}>
-                        <Plus className="mr-2 h-4 w-4" />
-                        Add New Template
-                      </Button>
+                      <TemplateDialog />
                     </div>
 
                     {templatesLoading ? (
@@ -404,9 +410,14 @@ export default function AdminPanel() {
                             <div className="h-40 bg-gradient-to-br from-blue-50 to-blue-100 relative">
                               <div className="absolute top-2 right-2">
                                 <div className="flex space-x-1">
-                                  <Button size="sm" variant="secondary" className="h-8 w-8 p-0">
-                                    <Edit className="h-4 w-4" />
-                                  </Button>
+                                  <TemplateDialog 
+                                    template={template}
+                                    trigger={
+                                      <Button size="sm" variant="secondary" className="h-8 w-8 p-0">
+                                        <Edit className="h-4 w-4" />
+                                      </Button>
+                                    }
+                                  />
                                   <Button 
                                     size="sm" 
                                     variant="secondary" 

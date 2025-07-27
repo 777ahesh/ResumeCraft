@@ -3,7 +3,8 @@ import { Button } from "@/components/ui/button";
 import { useCreateResume } from "@/hooks/use-resumes";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
-import type { ResumeTemplate, ResumeData } from "@shared/schema";
+import type { ResumeTemplate } from "@shared/schema";
+import type { ResumeData } from "@/types/resume";
 
 interface TemplateCardProps {
   template: ResumeTemplate;
@@ -42,16 +43,48 @@ export function TemplateCard({ template }: TemplateCardProps) {
     try {
       const defaultResumeData: ResumeData = {
         personalInfo: {
-          name: "",
-          title: "",
-          email: "",
-          phone: "",
-          location: "",
-          summary: "",
+          name: "Your Name",
+          title: "Your Job Title",
+          email: "your.email@example.com",
+          phone: "(555) 123-4567",
+          location: "Your City, State",
+          summary: "A brief summary of your professional background and skills. This is where you can highlight your key achievements and career objectives.",
         },
-        experiences: [],
-        education: [],
-        skills: [],
+        experiences: [
+          {
+            id: crypto.randomUUID(),
+            title: "Job Title",
+            company: "Company Name",
+            startYear: "2022",
+            endYear: "Present",
+            description: "• Describe your key responsibilities and achievements\n• Include specific metrics and results when possible\n• Use action verbs to start each bullet point"
+          }
+        ],
+        education: [
+          {
+            id: crypto.randomUUID(),
+            degree: "Bachelor of Science in Computer Science",
+            institution: "University Name",
+            graduationYear: "2022"
+          }
+        ],
+        skills: [
+          {
+            id: crypto.randomUUID(),
+            name: "JavaScript",
+            category: "Programming Languages"
+          },
+          {
+            id: crypto.randomUUID(),
+            name: "React",
+            category: "Frameworks"
+          },
+          {
+            id: crypto.randomUUID(),
+            name: "Node.js",
+            category: "Backend"
+          }
+        ],
       };
 
       const newResume = await createResume.mutateAsync({

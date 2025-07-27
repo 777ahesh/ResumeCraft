@@ -5,6 +5,10 @@ import type { Resume, InsertResume, UpdateResume } from "@shared/schema";
 export function useResumes() {
   return useQuery<Resume[]>({
     queryKey: ["/api/resumes"],
+    queryFn: async () => {
+      const response = await apiRequest("GET", "/api/resumes");
+      return response.json();
+    },
   });
 }
 
@@ -12,6 +16,10 @@ export function useResume(id: string) {
   return useQuery<Resume>({
     queryKey: ["/api/resumes", id],
     enabled: !!id,
+    queryFn: async () => {
+      const response = await apiRequest("GET", `/api/resumes/${id}`);
+      return response.json();
+    },
   });
 }
 

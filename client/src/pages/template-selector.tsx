@@ -7,6 +7,7 @@ import { Navbar } from "@/components/navbar";
 import { TemplateCard } from "@/components/template-card";
 import { ArrowLeft } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 import type { ResumeTemplate } from "@shared/schema";
 
 export default function TemplateSelector() {
@@ -15,6 +16,10 @@ export default function TemplateSelector() {
 
   const { data: templates, isLoading } = useQuery<ResumeTemplate[]>({
     queryKey: ["/api/templates"],
+    queryFn: async () => {
+      const response = await apiRequest("GET", "/api/templates");
+      return response.json();
+    },
   });
 
   useEffect(() => {
