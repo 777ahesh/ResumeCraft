@@ -85,6 +85,7 @@ export function TemplateCard({ template }: TemplateCardProps) {
             category: "Backend"
           }
         ],
+        customSections: [],
       };
 
       const newResume = await createResume.mutateAsync({

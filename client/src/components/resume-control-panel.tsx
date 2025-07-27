@@ -4,9 +4,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Plus, Trash2, ChevronDown, ChevronRight } from "lucide-react";
+import { Plus, Trash2, ChevronDown, ChevronRight, Edit, Eye, EyeOff } from "lucide-react";
 import { useState } from "react";
-import type { ResumeData, WorkExperience, Education, Skill } from "@/types/resume";
+import type { ResumeData, WorkExperience, Education, Skill, CustomSection, CustomSectionItem } from "@/types/resume";
 import { useIsMobile } from "@/hooks/use-mobile";
 // Browser-compatible UUID generation
 const generateId = () => {
@@ -33,10 +33,21 @@ export function ResumeControlPanel({ resumeData, onChange }: ResumeControlPanelP
     experience: !isMobile,
     education: !isMobile,
     skills: !isMobile,
+    customSections: !isMobile,
   });
 
   const toggleSection = (section: keyof typeof openSections) => {
     setOpenSections(prev => ({ ...prev, [section]: !prev[section] }));
+  };
+
+  // Initialize customSections if it doesn't exist
+  const ensureCustomSections = () => {
+    if (!resumeData.customSections) {
+      onChange({
+        ...resumeData,
+        customSections: [],
+      });
+    }
   };
 
   const updatePersonalInfo = (field: string, value: string) => {
@@ -137,6 +148,94 @@ export function ResumeControlPanel({ resumeData, onChange }: ResumeControlPanelP
     onChange({
       ...resumeData,
       skills: resumeData.skills.filter(skill => skill.id !== id),
+    });
+  };
+
+  // Custom Section Functions
+  const addCustomSection = () => {
+    ensureCustomSections();
+    const newSection: CustomSection = {
+      id: generateId(),
+      name: "Custom Section",
+      items: [],
+      isVisible: true,
+    };
+    
+    onChange({
+      ...resumeData,
+      customSections: [...(resumeData.customSections || []), newSection],
+    });
+  };
+
+  const updateCustomSectionName = (sectionId: string, name: string) => {
+    onChange({
+      ...resumeData,
+      customSections: (resumeData.customSections || []).map(section =>
+        section.id === sectionId ? { ...section, name } : section
+      ),
+    });
+  };
+
+  const toggleCustomSectionVisibility = (sectionId: string) => {
+    onChange({
+      ...resumeData,
+      customSections: (resumeData.customSections || []).map(section =>
+        section.id === sectionId ? { ...section, isVisible: !section.isVisible } : section
+      ),
+    });
+  };
+
+  const removeCustomSection = (sectionId: string) => {
+    onChange({
+      ...resumeData,
+      customSections: (resumeData.customSections || []).filter(section => section.id !== sectionId),
+    });
+  };
+
+  const addCustomSectionItem = (sectionId: string) => {
+    const newItem: CustomSectionItem = {
+      id: generateId(),
+      title: "",
+      subtitle: "",
+      description: "",
+      date: "",
+      location: "",
+    };
+    
+    onChange({
+      ...resumeData,
+      customSections: (resumeData.customSections || []).map(section =>
+        section.id === sectionId 
+          ? { ...section, items: [...section.items, newItem] }
+          : section
+      ),
+    });
+  };
+
+  const updateCustomSectionItem = (sectionId: string, itemId: string, field: string, value: string) => {
+    onChange({
+      ...resumeData,
+      customSections: (resumeData.customSections || []).map(section =>
+        section.id === sectionId 
+          ? {
+              ...section,
+              items: section.items.map(item =>
+                item.id === itemId ? { ...item, [field]: value } : item
+              )
+            }
+          : section
+      ),
+    });
+  };
+
+  const removeCustomSectionItem = (sectionId: string, itemId: string) => {
+    onChange({
+      ...resumeData,
+      customSections: (resumeData.customSections || []).map(section =>
+        section.id === sectionId 
+          ? { ...section, items: section.items.filter(item => item.id !== itemId) }
+          : section
+      ),
     });
   };
 
@@ -421,6 +520,133 @@ export function ResumeControlPanel({ resumeData, onChange }: ResumeControlPanelP
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
+                    </div>
+                  ))}
+                </CardContent>
+              </CollapsibleContent>
+            </Collapsible>
+          </Card>
+
+          {/* Custom Sections */}
+          <Card>
+            <Collapsible open={openSections.customSections} onOpenChange={() => toggleSection('customSections')}>
+              <CollapsibleTrigger asChild>
+                <CardHeader className="cursor-pointer hover:bg-gray-50 transition-colors">
+                  <CardTitle className="flex items-center justify-between text-base">
+                    Custom Sections
+                    <div className="flex items-center space-x-2">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          addCustomSection();
+                        }}
+                        className="h-6 w-6 p-0"
+                      >
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                      {openSections.customSections ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                    </div>
+                  </CardTitle>
+                </CardHeader>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <CardContent className="space-y-4 pt-0">
+                  {(resumeData.customSections || []).map((section) => (
+                    <div key={section.id} className="border border-gray-200 rounded p-3 space-y-3">
+                      {/* Section Header */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-2 flex-1">
+                          <Input
+                            value={section.name}
+                            onChange={(e) => updateCustomSectionName(section.id, e.target.value)}
+                            placeholder="Section Name"
+                            className="font-medium text-sm flex-1"
+                          />
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => toggleCustomSectionVisibility(section.id)}
+                            className="h-8 w-8 p-0"
+                            title={section.isVisible ? "Hide section" : "Show section"}
+                          >
+                            {section.isVisible ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                          </Button>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => removeCustomSection(section.id)}
+                          className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+
+                      {/* Section Items */}
+                      <div className="space-y-3">
+                        {section.items.map((item) => (
+                          <div key={item.id} className="bg-gray-50 rounded p-3 space-y-2">
+                            <div className="flex justify-between items-start">
+                              <div className="flex-1 space-y-2">
+                                <Input
+                                  value={item.title}
+                                  onChange={(e) => updateCustomSectionItem(section.id, item.id, 'title', e.target.value)}
+                                  placeholder="Item Title"
+                                  className="text-sm font-medium"
+                                />
+                                <Input
+                                  value={item.subtitle || ''}
+                                  onChange={(e) => updateCustomSectionItem(section.id, item.id, 'subtitle', e.target.value)}
+                                  placeholder="Subtitle (optional)"
+                                  className="text-sm"
+                                />
+                                <div className="grid grid-cols-2 gap-2">
+                                  <Input
+                                    value={item.date || ''}
+                                    onChange={(e) => updateCustomSectionItem(section.id, item.id, 'date', e.target.value)}
+                                    placeholder="Date"
+                                    className="text-sm"
+                                  />
+                                  <Input
+                                    value={item.location || ''}
+                                    onChange={(e) => updateCustomSectionItem(section.id, item.id, 'location', e.target.value)}
+                                    placeholder="Location"
+                                    className="text-sm"
+                                  />
+                                </div>
+                                <Textarea
+                                  value={item.description}
+                                  onChange={(e) => updateCustomSectionItem(section.id, item.id, 'description', e.target.value)}
+                                  placeholder="Description"
+                                  className="text-sm"
+                                  rows={3}
+                                />
+                              </div>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => removeCustomSectionItem(section.id, item.id)}
+                                className="ml-2 h-8 w-8 p-0 text-red-600 hover:text-red-700"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                        
+                        {/* Add Item Button */}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => addCustomSectionItem(section.id)}
+                          className="w-full"
+                        >
+                          <Plus className="h-4 w-4 mr-2" />
+                          Add Item
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </CardContent>

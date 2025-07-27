@@ -4,12 +4,13 @@ import { useLocation, useParams } from "wouter";
 import { Navbar } from "@/components/navbar";
 import { ResumeCanvas } from "@/components/resume-canvas";
 import { ResumeControlPanel } from "@/components/resume-control-panel";
+import { StyleConfigPanel } from "@/components/style-config-panel";
 import { Button } from "@/components/ui/button";
 import { useResume, useUpdateResume } from "@/hooks/use-resumes";
-import { ArrowLeft, Save, Download, Undo, Redo, FileText, ChevronDown, Palette, Menu } from "lucide-react";
+import { ArrowLeft, Save, Download, Undo, Redo, FileText, ChevronDown, Palette, Menu, Settings } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
-import type { ResumeData } from "@/types/resume";
+import type { ResumeData, StyleConfig } from "@/types/resume";
 import { downloadResumePDF, resumePDFToBase64 } from "@/lib/pdf-generator";
 import { downloadResumeWord } from "@/lib/word-generator";
 import { saveResumeToLocalStorage, savePDFToLocalStorage } from "@/lib/resume-utils";
@@ -32,6 +33,12 @@ import {
   SheetContent,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
 
 export default function ResumeEditor() {
   const { user, loading } = useAuth();
@@ -47,6 +54,21 @@ export default function ResumeEditor() {
   const [hasChanges, setHasChanges] = useState(false);
   const [currentTemplate, setCurrentTemplate] = useState<string>("modern-professional");
   const [showControlPanel, setShowControlPanel] = useState(!isMobile);
+  const [activePanel, setActivePanel] = useState<'content' | 'style'>('content');
+
+  // Default style configuration
+  const defaultStyleConfig: StyleConfig = {
+    fontFamily: 'Inter',
+    fontSize: 14,
+    primaryColor: '#3B82F6',
+    secondaryColor: '#6B7280',
+    textColor: '#1F2937',
+    backgroundColor: '#FFFFFF',
+    headerStyle: 'bold',
+    spacing: 'normal',
+    borderRadius: 4,
+    lineHeight: 1.5,
+  };
 
   const templateOptions = [
     { id: "modern-professional", name: "Modern Professional", description: "Two-column layout with sidebar" },
@@ -66,7 +88,16 @@ export default function ResumeEditor() {
   useEffect(() => {
     if (resume) {
       console.log('Resume loaded:', { id: resume.id, templateId: resume.templateId, title: resume.title });
-      setResumeData(resume.resumeData as ResumeData);
+      const resumeDataWithDefaults = resume.resumeData as ResumeData;
+      // Ensure styleConfig exists with defaults
+      if (!resumeDataWithDefaults.styleConfig) {
+        resumeDataWithDefaults.styleConfig = defaultStyleConfig;
+      }
+      // Ensure customSections exists with defaults
+      if (!resumeDataWithDefaults.customSections) {
+        resumeDataWithDefaults.customSections = [];
+      }
+      setResumeData(resumeDataWithDefaults);
       setCurrentTemplate(resume.templateId || "modern-professional");
     }
   }, [resume]);
@@ -123,6 +154,16 @@ export default function ResumeEditor() {
 
   const handleDataChange = (newData: ResumeData) => {
     setResumeData(newData);
+    setHasChanges(true);
+  };
+
+  const handleStyleChange = (newStyleConfig: StyleConfig) => {
+    if (!resumeData) return;
+    const updatedData = {
+      ...resumeData,
+      styleConfig: newStyleConfig,
+    };
+    setResumeData(updatedData);
     setHasChanges(true);
   };
 
@@ -210,10 +251,26 @@ export default function ResumeEditor() {
                   </Button>
                 </SheetTrigger>
                 <SheetContent side="left" className="w-80 p-0">
-                  <ResumeControlPanel
-                    resumeData={resumeData}
-                    onChange={handleDataChange}
-                  />
+                  <Tabs defaultValue="content" className="h-full">
+                    <div className="p-4 border-b">
+                      <TabsList className="grid w-full grid-cols-2">
+                        <TabsTrigger value="content">Content</TabsTrigger>
+                        <TabsTrigger value="style">Style</TabsTrigger>
+                      </TabsList>
+                    </div>
+                    <TabsContent value="content" className="m-0 h-full">
+                      <ResumeControlPanel
+                        resumeData={resumeData}
+                        onChange={handleDataChange}
+                      />
+                    </TabsContent>
+                    <TabsContent value="style" className="m-0 h-full">
+                      <StyleConfigPanel
+                        styleConfig={resumeData?.styleConfig || defaultStyleConfig}
+                        onChange={handleStyleChange}
+                      />
+                    </TabsContent>
+                  </Tabs>
                 </SheetContent>
               </Sheet>
             )}
@@ -227,6 +284,18 @@ export default function ResumeEditor() {
                 <Button variant="ghost" disabled size="sm">
                   <Redo className="mr-1 h-3 w-3 sm:h-4 sm:w-4" />
                   Redo
+                </Button>
+                
+                <div className="h-4 sm:h-6 w-px bg-gray-300"></div>
+                
+                {/* Style Configuration Toggle */}
+                <Button
+                  variant={activePanel === 'style' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setActivePanel(activePanel === 'style' ? 'content' : 'style')}
+                >
+                  <Settings className="mr-1 h-3 w-3 sm:h-4 sm:w-4" />
+                  Style
                 </Button>
                 
                 <div className="h-4 sm:h-6 w-px bg-gray-300"></div>
@@ -245,9 +314,9 @@ export default function ResumeEditor() {
                     <SelectItem key={template.id} value={template.id}>
                       <div className="flex flex-col">
                         <span className="font-medium text-xs sm:text-sm">{template.name}</span>
-                        {!isMobile && (
+                        {/* {!isMobile && (
                           <span className="text-xs text-gray-500">{template.description}</span>
-                        )}
+                        )} */}
                       </div>
                     </SelectItem>
                   ))}
@@ -293,14 +362,22 @@ export default function ResumeEditor() {
       {/* Editor Content */}
       <div className="flex-1 flex overflow-hidden">
         {!isMobile && (
-          <ResumeControlPanel
-            resumeData={resumeData}
-            onChange={handleDataChange}
-          />
+          activePanel === 'content' ? (
+            <ResumeControlPanel
+              resumeData={resumeData}
+              onChange={handleDataChange}
+            />
+          ) : (
+            <StyleConfigPanel
+              styleConfig={resumeData?.styleConfig || defaultStyleConfig}
+              onChange={handleStyleChange}
+            />
+          )
         )}
         <ResumeCanvas
           resumeData={resumeData}
           template={currentTemplate}
+          styleConfig={resumeData?.styleConfig}
         />
       </div>
     </div>

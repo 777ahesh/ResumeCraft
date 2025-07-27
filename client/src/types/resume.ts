@@ -29,9 +29,40 @@ export type Skill = {
   category: string;
 };
 
+export type CustomSectionItem = {
+  id: string;
+  title: string;
+  subtitle?: string;
+  description: string;
+  date?: string;
+  location?: string;
+};
+
+export type CustomSection = {
+  id: string;
+  name: string;
+  items: CustomSectionItem[];
+  isVisible: boolean;
+};
+
+export type StyleConfig = {
+  fontFamily: string;
+  fontSize: number;
+  primaryColor: string;
+  secondaryColor: string;
+  textColor: string;
+  backgroundColor: string;
+  headerStyle: 'bold' | 'normal' | 'italic';
+  spacing: 'tight' | 'normal' | 'relaxed';
+  borderRadius: number;
+  lineHeight: number;
+};
+
 export type ResumeData = {
   personalInfo: PersonalInfo;
   experiences: WorkExperience[];
   education: Education[];
   skills: Skill[];
+  customSections: CustomSection[];
+  styleConfig?: StyleConfig;
 };

@@ -22,6 +22,7 @@ export const createDefaultResumeData = (): ResumeData => {
     experiences: [],
     education: [],
     skills: [],
+    customSections: [],
   };
 };
 
