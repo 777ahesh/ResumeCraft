@@ -6,7 +6,7 @@ import { ResumeCanvas } from "@/components/resume-canvas";
 import { ResumeControlPanel } from "@/components/resume-control-panel";
 import { Button } from "@/components/ui/button";
 import { useResume, useUpdateResume } from "@/hooks/use-resumes";
-import { ArrowLeft, Save, Download, Undo, Redo, FileText, ChevronDown } from "lucide-react";
+import { ArrowLeft, Save, Download, Undo, Redo, FileText, ChevronDown, Palette } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 import type { ResumeData } from "@/types/resume";
@@ -19,6 +19,13 @@ import {
   DropdownMenuItem, 
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu";
+import { 
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export default function ResumeEditor() {
   const { user, loading } = useAuth();
@@ -31,6 +38,16 @@ export default function ResumeEditor() {
   
   const [resumeData, setResumeData] = useState<ResumeData | null>(null);
   const [hasChanges, setHasChanges] = useState(false);
+  const [currentTemplate, setCurrentTemplate] = useState<string>("modern-professional");
+
+  const templateOptions = [
+    { id: "modern-professional", name: "Modern Professional", description: "Two-column layout with sidebar" },
+    { id: "creative-edge", name: "Creative Edge", description: "Zigzag timeline with modern cards" },
+    { id: "executive-classic", name: "Executive Classic", description: "Newspaper/magazine style" },
+    { id: "minimalist", name: "Minimalist", description: "Swiss design inspired" },
+    { id: "tech-developer", name: "Tech Developer", description: "Terminal/IDE interface" },
+    { id: "academic-scholar", name: "Academic Scholar", description: "Research paper style" }
+  ];
 
   useEffect(() => {
     if (!loading && !user) {
@@ -40,7 +57,9 @@ export default function ResumeEditor() {
 
   useEffect(() => {
     if (resume) {
+      console.log('Resume loaded:', { id: resume.id, templateId: resume.templateId, title: resume.title });
       setResumeData(resume.resumeData as ResumeData);
+      setCurrentTemplate(resume.templateId || "modern-professional");
     }
   }, [resume]);
 
@@ -56,32 +75,39 @@ export default function ResumeEditor() {
     return null;
   }
 
-  const handleSave = async () => {
+    const handleSave = async () => {
+    if (!resumeData || !resume) return;
+    
     try {
-      // Generate and store PDF as base64
-      const pdfBase64 = await resumePDFToBase64(resumeData, resume.templateId);
+      console.log('Saving resume:', { 
+        id: resume.id, 
+        currentTemplate, 
+        hasResumeData: !!resumeData 
+      });
       
+      // Save resume data and template to database
       await updateResume.mutateAsync({
         id: resume.id,
         data: {
           resumeData,
-          pdfData: pdfBase64, // Store PDF as base64 in database
-        },
+          templateId: currentTemplate, // Include the current template
+        }
       });
-      
-      // Also save to localStorage as backup
-      saveResumeToLocalStorage(resume.id, resumeData);
-      savePDFToLocalStorage(resume.id, pdfBase64);
+
+      // Generate and save PDF
+      const pdfBase64 = await resumePDFToBase64(resumeData, currentTemplate);
+      await savePDFToLocalStorage(resume.id, pdfBase64);
       
       setHasChanges(false);
       toast({
-        title: "Resume saved!",
-        description: "Your changes have been saved successfully.",
+        title: "Resume saved successfully",
+        description: "Your resume has been saved to the database and PDF generated.",
       });
     } catch (error) {
+      console.error('Save error:', error);
       toast({
-        title: "Error",
-        description: "Failed to save resume. Please try again.",
+        title: "Error saving resume",
+        description: "Please try again.",
         variant: "destructive",
       });
     }
@@ -92,6 +118,12 @@ export default function ResumeEditor() {
     setHasChanges(true);
   };
 
+  const handleTemplateChange = (templateId: string) => {
+    console.log('Template changed to:', templateId);
+    setCurrentTemplate(templateId);
+    setHasChanges(true);
+  };
+
   const handleDownloadPDF = async () => {
     if (!resumeData) return;
     
@@ -99,7 +131,7 @@ export default function ResumeEditor() {
       await downloadResumePDF(
         resumeData,
         resume.title || "resume",
-        resume.templateId
+        currentTemplate
       );
       toast({
         title: "Success!",
@@ -121,7 +153,7 @@ export default function ResumeEditor() {
       await downloadResumeWord(
         resumeData,
         resume.title || "resume",
-        resume.templateId
+        currentTemplate
       );
       toast({
         title: "Success!",
@@ -168,6 +200,28 @@ export default function ResumeEditor() {
             </Button>
             
             <div className="h-6 w-px bg-gray-300"></div>
+
+            {/* Template Selector */}
+            <div className="flex items-center gap-2">
+              <Palette className="h-4 w-4 text-gray-600" />
+              <Select value={currentTemplate} onValueChange={handleTemplateChange}>
+                <SelectTrigger className="w-48">
+                  <SelectValue placeholder="Select template" />
+                </SelectTrigger>
+                <SelectContent>
+                  {templateOptions.map((template) => (
+                    <SelectItem key={template.id} value={template.id}>
+                      <div className="flex flex-col">
+                        <span className="font-medium">{template.name}</span>
+                        <span className="text-xs text-gray-500">{template.description}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="h-6 w-px bg-gray-300"></div>
             
             <Button
               variant="outline"
@@ -209,7 +263,7 @@ export default function ResumeEditor() {
         />
         <ResumeCanvas
           resumeData={resumeData}
-          template={resume.templateId}
+          template={currentTemplate}
         />
       </div>
     </div>

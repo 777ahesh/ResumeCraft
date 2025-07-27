@@ -31,11 +31,12 @@ export class MongoStorage implements IStorage {
   }
 
   private async initializeDefaultTemplates(): Promise<void> {
-    const existingTemplates = await ResumeTemplate.countDocuments();
-    if (existingTemplates > 0) return;
-
+    // Clear existing templates to ensure we use the new IDs
+    await ResumeTemplate.deleteMany({});
+    
     const defaultTemplates = [
       {
+        _id: "modern-professional",
         name: "Modern Professional",
         description: "Clean and modern design perfect for any industry",
         category: "professional",
@@ -47,6 +48,7 @@ export class MongoStorage implements IStorage {
         isActive: true,
       },
       {
+        _id: "creative-edge",
         name: "Creative Edge",
         description: "Stand out with this creative and colorful design",
         category: "creative",
@@ -58,6 +60,7 @@ export class MongoStorage implements IStorage {
         isActive: true,
       },
       {
+        _id: "executive-classic",
         name: "Executive Classic",
         description: "Traditional and professional for senior roles",
         category: "executive",
@@ -69,6 +72,7 @@ export class MongoStorage implements IStorage {
         isActive: true,
       },
       {
+        _id: "minimalist",
         name: "Minimalist",
         description: "Clean and simple design that focuses on content",
         category: "minimal",
@@ -80,6 +84,7 @@ export class MongoStorage implements IStorage {
         isActive: true,
       },
       {
+        _id: "tech-developer",
         name: "Tech Developer",
         description: "Dark themed design perfect for developers and tech roles",
         category: "tech",
@@ -91,6 +96,7 @@ export class MongoStorage implements IStorage {
         isActive: true,
       },
       {
+        _id: "academic-scholar",
         name: "Academic Scholar",
         description: "Traditional academic format for research and education",
         category: "academic",
@@ -104,7 +110,7 @@ export class MongoStorage implements IStorage {
     ];
 
     await ResumeTemplate.insertMany(defaultTemplates);
-    console.log('Default templates initialized in MongoDB');
+    console.log('Default templates initialized in MongoDB with specific IDs');
   }
 
   // User management

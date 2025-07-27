@@ -65,6 +65,7 @@ export interface InsertTemplate {
 
 export interface UpdateResume {
   title?: string;
+  templateId?: string;
   resumeData?: any;
   pdfData?: string;
 }
@@ -101,6 +102,7 @@ export const insertResumeSchema = z.object({
 
 export const updateResumeSchema = z.object({
   title: z.string().optional(),
+  templateId: z.string().optional(),
   resumeData: z.any().optional(),
   pdfData: z.string().optional(),
 });

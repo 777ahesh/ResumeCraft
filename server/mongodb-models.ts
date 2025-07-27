@@ -13,6 +13,7 @@ const userSchema = new mongoose.Schema({
 
 // Resume Template Schema
 const resumeTemplateSchema = new mongoose.Schema({
+  _id: { type: String, required: true }, // Custom string ID
   name: { type: String, required: true },
   description: { type: String, required: true },
   category: { type: String, required: true },
@@ -20,13 +21,14 @@ const resumeTemplateSchema = new mongoose.Schema({
   templateData: { type: mongoose.Schema.Types.Mixed, required: true },
   isActive: { type: Boolean, default: true },
 }, {
-  timestamps: true
+  timestamps: true,
+  _id: false // Disable auto ObjectId generation
 });
 
 // Resume Schema
 const resumeSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  templateId: { type: mongoose.Schema.Types.ObjectId, ref: 'ResumeTemplate', required: true },
+  templateId: { type: String, required: true }, // Changed to String to support custom IDs
   title: { type: String, required: true },
   resumeData: { type: mongoose.Schema.Types.Mixed, required: true },
   pdfData: { type: String }, // base64 encoded PDF
