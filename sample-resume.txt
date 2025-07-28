@@ -1,0 +1,52 @@
+John Doe
+Senior Software Engineer
+john.doe@example.com
+(555) 123-4567
+San Francisco, CA
+
+PROFESSIONAL SUMMARY
+Experienced software engineer with 8+ years of experience in full-stack development, specializing in React, Node.js, and cloud technologies. Proven track record of leading teams and delivering scalable solutions.
+
+WORK EXPERIENCE
+
+Senior Software Engineer
+Tech Innovations Inc. | January 2021 - Present
+• Led development of microservices architecture serving 1M+ users
+• Implemented CI/CD pipelines reducing deployment time by 75%
+• Mentored team of 5 junior developers
+• Technologies: React, Node.js, AWS, Docker, Kubernetes
+
+Software Engineer
+Digital Solutions Co. | June 2019 - December 2020
+• Developed responsive web applications using React and TypeScript
+• Built RESTful APIs with Node.js and Express
+• Collaborated with cross-functional teams to deliver projects on time
+• Technologies: React, TypeScript, Node.js, MongoDB
+
+Junior Developer
+StartupXYZ | September 2016 - May 2019
+• Built user interfaces using modern JavaScript frameworks
+• Participated in agile development processes
+• Contributed to code reviews and technical documentation
+• Technologies: JavaScript, Vue.js, PHP, MySQL
+
+EDUCATION
+
+Bachelor of Science in Computer Science
+University of California, Berkeley | 2012 - 2016
+GPA: 3.8/4.0
+Relevant Coursework: Data Structures, Algorithms, Software Engineering
+
+SKILLS
+
+Programming Languages: JavaScript, TypeScript, Python, Java
+Frontend: React, Vue.js, HTML5, CSS3, Tailwind CSS
+Backend: Node.js, Express, Python Flask, Java Spring
+Databases: MongoDB, PostgreSQL, MySQL, Redis
+Cloud & DevOps: AWS, Docker, Kubernetes, Jenkins, Git
+Tools: VS Code, IntelliJ, Postman, Figma
+
+CERTIFICATIONS
+
+AWS Certified Solutions Architect - Associate | 2022
+Certified Kubernetes Administrator (CKA) | 2021

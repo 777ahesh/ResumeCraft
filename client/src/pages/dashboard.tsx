@@ -7,7 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Navbar } from "@/components/navbar";
 import { useResumes, useDeleteResume } from "@/hooks/use-resumes";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Edit, Download, Trash2, Calendar } from "lucide-react";
+import { Plus, Edit, Download, Trash2, Calendar, Upload } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { generateResumePDF } from "@/lib/pdf-generator";
 import { apiRequest } from "@/lib/queryClient";
@@ -40,6 +40,10 @@ export function Dashboard() {
 
   const handleCreateNew = () => {
     setLocation("/templates");
+  };
+
+  const handleUploadResume = () => {
+    setLocation("/upload-template-selector");
   };
 
   const handleEditResume = (resumeId: string) => {
@@ -121,6 +125,29 @@ export function Dashboard() {
                   </div>
                   <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-2">Create New Resume</h3>
                   <p className="text-xs sm:text-sm text-gray-600">Start building a new resume from scratch</p>
+                </CardContent>
+              </Card>
+            </motion.div>
+
+            {/* Upload Existing Resume Card */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.5, delay: 0.15 }}
+            >
+              <Card 
+                className="border-2 border-dashed border-blue-300 hover:border-blue-500 hover:bg-blue-50 transition-all cursor-pointer group h-64 sm:h-72 lg:h-80"
+                onClick={handleUploadResume}
+              >
+                <CardContent className="flex flex-col items-center justify-center text-center h-full p-4 sm:p-6 lg:p-8">
+                  <div className="w-12 h-12 sm:w-14 sm:h-14 lg:w-16 lg:h-16 bg-blue-100 rounded-full flex items-center justify-center mb-3 sm:mb-4 group-hover:bg-blue-200 transition-colors">
+                    <Upload className="h-6 w-6 sm:h-7 sm:w-7 lg:h-8 lg:w-8 text-blue-600" />
+                  </div>
+                  <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-2">Upload & Convert</h3>
+                  <p className="text-xs sm:text-sm text-gray-600">Import your existing resume and apply our templates</p>
+                  <div className="mt-2 text-xs text-blue-600">
+                    PDF, Word, Text supported
+                  </div>
                 </CardContent>
               </Card>
             </motion.div>

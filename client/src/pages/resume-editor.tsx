@@ -88,7 +88,9 @@ export default function ResumeEditor() {
 
   useEffect(() => {
     if (resume) {
-      console.log('Resume loaded:', { id: resume.id, templateId: resume.templateId, title: resume.title });
+      console.log('📝 Resume loaded in editor:', JSON.stringify(resume, null, 2));
+      console.log('📊 Resume data structure:', resume.resumeData);
+      
       const resumeDataWithDefaults = resume.resumeData as ResumeData;
       // Ensure styleConfig exists with defaults
       if (!resumeDataWithDefaults.styleConfig) {
@@ -98,6 +100,8 @@ export default function ResumeEditor() {
       if (!resumeDataWithDefaults.customSections) {
         resumeDataWithDefaults.customSections = [];
       }
+      
+      console.log('✅ Setting resume data in editor:', JSON.stringify(resumeDataWithDefaults, null, 2));
       setResumeData(resumeDataWithDefaults);
       setCurrentTemplate(resume.templateId || "modern-professional");
     }

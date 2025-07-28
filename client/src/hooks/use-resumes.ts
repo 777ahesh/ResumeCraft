@@ -28,14 +28,18 @@ export function useCreateResume() {
   
   return useMutation({
     mutationFn: async (data: InsertResume) => {
+      console.log('🚀 Creating resume with data:', JSON.stringify(data, null, 2));
       const response = await apiRequest("POST", "/api/resumes", data);
-      return response.json();
+      const result = await response.json();
+      console.log('✅ Resume created successfully:', result);
+      return result;
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
+      console.log('🎉 Resume creation success callback:', result);
       queryClient.invalidateQueries({ queryKey: ["/api/resumes"] });
     },
     onError: (error) => {
-      console.error("Failed to create resume:", error);
+      console.error("❌ Failed to create resume:", error);
     },
   });
 }

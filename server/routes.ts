@@ -184,6 +184,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: "Authentication required" });
       }
       
+      console.log('📥 Received resume creation request:');
+      console.log('👤 User ID:', req.user.id);
+      console.log('📄 Request body:', JSON.stringify(req.body, null, 2));
+      
       const bodyWithDefaults = {
         ...req.body,
         userId: req.user.id,
@@ -195,12 +199,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       };
       
+      console.log('🔧 Body with defaults:', JSON.stringify(bodyWithDefaults, null, 2));
+      
       const resumeData = insertResumeSchema.parse(bodyWithDefaults) as InsertResume;
+      console.log('✅ Validated resume data:', JSON.stringify(resumeData, null, 2));
+      
       const resume = await storage.createResume(resumeData);
+      console.log('💾 Created resume:', JSON.stringify(resume, null, 2));
+      
       res.status(201).json(resume);
     } catch (error) {
-      console.error('Create resume error:', error);
+      console.error('❌ Create resume error:', error);
       if (error instanceof z.ZodError) {
+        console.error('Validation errors:', error.errors);
         return res.status(400).json({ message: "Validation error", errors: error.errors });
       }
       res.status(500).json({ message: "Server error" });

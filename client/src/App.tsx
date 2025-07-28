@@ -9,6 +9,7 @@ import { useEffect } from "react";
 import Landing from "@/pages/landing";
 import Dashboard from "@/pages/dashboard";
 import TemplateSelector from "@/pages/template-selector";
+import TemplateSelectorWithUpload from "@/pages/template-selector-with-upload";
 import ResumeEditor from "@/pages/resume-editor";
 import UserProfile from "@/pages/user-profile";
 import AdminPanel from "@/pages/admin-panel";
@@ -20,6 +21,7 @@ function Router() {
       <Route path="/" component={Landing} />
       <Route path="/dashboard" component={Dashboard} />
       <Route path="/templates" component={TemplateSelector} />
+      <Route path="/upload-template-selector" component={TemplateSelectorWithUpload} />
       <Route path="/editor/:resumeId?" component={ResumeEditor} />
       <Route path="/profile" component={UserProfile} />
       <Route path="/admin" component={AdminPanel} />

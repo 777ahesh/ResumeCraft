@@ -27,7 +27,9 @@ const DEFAULT_OPTIONS: PDFOptions = {
 };
 
 // Template color schemes
-const TEMPLATE_COLORS = {
+type RGB = [number, number, number];
+
+const TEMPLATE_COLORS: Record<string, { primary: RGB; secondary: RGB; text: RGB }> = {
   "modern-professional": {
     primary: [59, 130, 246], // blue
     secondary: [107, 114, 128], // gray
@@ -93,16 +95,16 @@ export const generateResumePDF = async (
   const contentWidth = pageWidth - opts.margins.left - opts.margins.right;
 
   // Helper function to add text with word wrapping
-  const addText = (
+    const addMultilineText = (
     text: string,
     x: number,
     y: number,
     maxWidth: number,
     fontSize: number = FONT_SIZES.body,
-    color: number[] = colors.text
+    color: RGB = colors.text
   ): number => {
     pdf.setFontSize(fontSize);
-    pdf.setTextColor(...color);
+    pdf.setTextColor(color[0], color[1], color[2]);
     
     const lines = pdf.splitTextToSize(text, maxWidth);
     let currentY = y;
@@ -118,13 +120,13 @@ export const generateResumePDF = async (
   // Helper function to add section header
   const addSectionHeader = (title: string, y: number): number => {
     pdf.setFontSize(FONT_SIZES.sectionHeader);
-    pdf.setTextColor(...colors.primary);
+    pdf.setTextColor(colors.primary[0], colors.primary[1], colors.primary[2]);
     pdf.setFont("helvetica", "bold");
     pdf.text(title, opts.margins.left, y);
     
     // Add underline
     const textWidth = pdf.getTextWidth(title);
-    pdf.setDrawColor(...colors.primary);
+    pdf.setDrawColor(colors.primary[0], colors.primary[1], colors.primary[2]);
     pdf.setLineWidth(0.5);
     pdf.line(opts.margins.left, y + 2, opts.margins.left + textWidth, y + 2);
     
@@ -132,10 +134,19 @@ export const generateResumePDF = async (
     return y + 10;
   };
 
+  // Helper function to add regular text
+  const addText = (text: string, x: number, y: number, fontSize: number = FONT_SIZES.body, fontStyle: string = "normal", color: RGB = colors.text): number => {
+    pdf.setFontSize(fontSize);
+    pdf.setTextColor(color[0], color[1], color[2]);
+    pdf.setFont("helvetica", fontStyle);
+    pdf.text(text, x, y);
+    return y + fontSize * 0.4 + 2; // Use proper line height
+  };
+
   // Header Section
   if (resumeData.personalInfo.name) {
     pdf.setFontSize(FONT_SIZES.name);
-    pdf.setTextColor(...colors.primary);
+    pdf.setTextColor(colors.primary[0], colors.primary[1], colors.primary[2]);
     pdf.setFont("helvetica", "bold");
     pdf.text(resumeData.personalInfo.name, opts.margins.left, yPosition);
     yPosition += 8;
@@ -143,7 +154,7 @@ export const generateResumePDF = async (
 
   if (resumeData.personalInfo.title) {
     pdf.setFontSize(FONT_SIZES.title);
-    pdf.setTextColor(...colors.secondary);
+    pdf.setTextColor(colors.secondary[0], colors.secondary[1], colors.secondary[2]);
     pdf.setFont("helvetica", "normal");
     pdf.text(resumeData.personalInfo.title, opts.margins.left, yPosition);
     yPosition += 6;
@@ -158,13 +169,13 @@ export const generateResumePDF = async (
 
   if (contactInfo.length > 0) {
     pdf.setFontSize(FONT_SIZES.small);
-    pdf.setTextColor(...colors.text);
+    pdf.setTextColor(colors.text[0], colors.text[1], colors.text[2]);
     pdf.text(contactInfo.join(" • "), opts.margins.left, yPosition);
     yPosition += 8;
   }
 
   // Add separator line
-  pdf.setDrawColor(...colors.primary);
+  pdf.setDrawColor(colors.primary[0], colors.primary[1], colors.primary[2]);
   pdf.setLineWidth(1);
   pdf.line(opts.margins.left, yPosition, pageWidth - opts.margins.right, yPosition);
   yPosition += 10;
@@ -193,7 +204,7 @@ export const generateResumePDF = async (
 
       // Job title and company
       pdf.setFontSize(FONT_SIZES.body);
-      pdf.setTextColor(...colors.text);
+      pdf.setTextColor(colors.text[0], colors.text[1], colors.text[2]);
       pdf.setFont("helvetica", "bold");
       pdf.text(experience.title, opts.margins.left, yPosition);
       
@@ -206,7 +217,7 @@ export const generateResumePDF = async (
       const dateRange = formatDateRange(experience.startYear, experience.endYear);
       if (dateRange) {
         pdf.setFontSize(FONT_SIZES.small);
-        pdf.setTextColor(...colors.secondary);
+        pdf.setTextColor(colors.secondary[0], colors.secondary[1], colors.secondary[2]);
         const dateWidth = pdf.getTextWidth(dateRange);
         pdf.text(dateRange, pageWidth - opts.margins.right - dateWidth, yPosition);
       }
@@ -216,7 +227,7 @@ export const generateResumePDF = async (
       // Description
       if (experience.description) {
         pdf.setFont("helvetica", "normal");
-        yPosition = addText(
+        yPosition = addMultilineText(
           experience.description,
           opts.margins.left + 5,
           yPosition,
@@ -246,13 +257,13 @@ export const generateResumePDF = async (
       // Multiple categories
       categories.forEach((category) => {
         pdf.setFontSize(FONT_SIZES.body);
-        pdf.setTextColor(...colors.text);
+        pdf.setTextColor(colors.text[0], colors.text[1], colors.text[2]);
         pdf.setFont("helvetica", "bold");
         pdf.text(`${category}:`, opts.margins.left, yPosition);
         yPosition += 4;
 
         const skillsText = skillsByCategory[category].join(", ");
-        yPosition = addText(
+        yPosition = addMultilineText(
           skillsText,
           opts.margins.left + 5,
           yPosition,
@@ -263,7 +274,7 @@ export const generateResumePDF = async (
     } else {
       // Single category or no categories
       const allSkills = resumeData.skills.map(skill => skill.name).join(", ");
-      yPosition = addText(
+      yPosition = addMultilineText(
         allSkills,
         opts.margins.left,
         yPosition,
@@ -285,7 +296,7 @@ export const generateResumePDF = async (
     
     resumeData.education.forEach((education) => {
       pdf.setFontSize(FONT_SIZES.body);
-      pdf.setTextColor(...colors.text);
+      pdf.setTextColor(colors.text[0], colors.text[1], colors.text[2]);
       pdf.setFont("helvetica", "bold");
       pdf.text(education.degree, opts.margins.left, yPosition);
       
@@ -297,7 +308,7 @@ export const generateResumePDF = async (
       // Graduation year
       if (education.graduationYear) {
         pdf.setFontSize(FONT_SIZES.small);
-        pdf.setTextColor(...colors.secondary);
+        pdf.setTextColor(colors.secondary[0], colors.secondary[1], colors.secondary[2]);
         const yearWidth = pdf.getTextWidth(education.graduationYear);
         pdf.text(education.graduationYear, pageWidth - opts.margins.right - yearWidth, yPosition);
       }
