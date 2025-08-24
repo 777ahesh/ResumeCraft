@@ -23,54 +23,38 @@ export const generatePDFFromElement = async (
 
   try {
     console.log('Starting PDF generation for element:', element);
-    
-    // Validate element
-    if (!element) {
-      throw new Error('Element is null or undefined');
-    }
-    
-    if (!element.offsetWidth || !element.offsetHeight) {
-      throw new Error('Element has no visible dimensions');
-    }
-    
-    console.log('Element dimensions:', {
-      width: element.scrollWidth,
-      height: element.scrollHeight,
-      offsetWidth: element.offsetWidth,
-      offsetHeight: element.offsetHeight
-    });
 
-    // Wait for any images to load
+    if (!element) throw new Error('Element is null or undefined');
+    if (!element.offsetWidth || !element.offsetHeight) throw new Error('Element has no visible dimensions');
+
+    // Wait for images to load
     const images = element.querySelectorAll('img');
     if (images.length > 0) {
-      console.log(`Waiting for ${images.length} images to load...`);
       await Promise.all(Array.from(images).map(img => {
         if (img.complete) return Promise.resolve();
-        return new Promise((resolve, reject) => {
+        return new Promise((resolve) => {
           img.onload = resolve;
-          img.onerror = resolve; // Don't fail if image doesn't load
-          setTimeout(resolve, 5000); // Timeout after 5 seconds
+          img.onerror = resolve;
+          setTimeout(resolve, 5000);
         });
       }));
     }
 
-    // Configure html2canvas options for high quality capture
+    // Create a high-resolution canvas capture of the element
     const canvas = await html2canvas(element, {
       scale: scale,
-      useCORS: useCORS,
-      allowTaint: allowTaint,
+      useCORS,
+      allowTaint,
       backgroundColor: '#ffffff',
       imageTimeout: 15000,
       removeContainer: true,
-      logging: true, // Enable logging for debugging
+      logging: true,
       width: element.scrollWidth,
       height: element.scrollHeight,
       scrollX: 0,
       scrollY: 0,
-      // Additional options for better compatibility
       foreignObjectRendering: false,
       onclone: (clonedDoc) => {
-        // Ensure styles are applied to cloned document
         const clonedElement = clonedDoc.querySelector('.resume-canvas') as HTMLElement;
         if (clonedElement) {
           clonedElement.style.transform = 'none';
@@ -79,65 +63,64 @@ export const generatePDFFromElement = async (
       }
     });
 
-    console.log('Canvas created successfully:', {
-      width: canvas.width,
-      height: canvas.height
-    });
+    console.log('Canvas created successfully:', { width: canvas.width, height: canvas.height });
 
-    // Get canvas dimensions
-    const imgWidth = canvas.width;
-    const imgHeight = canvas.height;
+    // Setup PDF page sizes and margins (mm)
+    const pdf = new jsPDF({ unit: 'mm', format: 'a4' });
+    const pageWidthMM = pdf.internal.pageSize.getWidth();
+    const pageHeightMM = pdf.internal.pageSize.getHeight();
+    const marginMM = 10; // 10mm margins
+    const printableWidthMM = pageWidthMM - marginMM * 2;
+    const printableHeightMM = pageHeightMM - marginMM * 2;
 
-    // Calculate PDF dimensions (A4 size in mm)
-    const pdfWidth = 210; // A4 width in mm
-    const pdfHeight = 297; // A4 height in mm
-    
-    // Calculate aspect ratio
-    const aspectRatio = imgHeight / imgWidth;
-    
-    // Calculate dimensions to fit within PDF page
-    let finalWidth = pdfWidth - 20; // 10mm margin on each side
-    let finalHeight = finalWidth * aspectRatio;
-    
-    // If height exceeds page, scale down
-    if (finalHeight > pdfHeight - 20) { // 10mm margin top/bottom
-      finalHeight = pdfHeight - 20;
-      finalWidth = finalHeight / aspectRatio;
+    // Determine how many canvas pixels correspond to the printable height for one PDF page
+    // We will slice the large canvas vertically into page-sized canvas chunks so each page fills width
+    const pxPerMM = canvas.width / (printableWidthMM * (96 / 25.4));
+    // Fallback: compute based on ratio of canvas pixels to printable width
+    const pageCanvasHeightPx = Math.floor((canvas.width * printableHeightMM) / printableWidthMM);
+
+    console.log('PDF page settings:', { pageWidthMM, pageHeightMM, printableWidthMM, printableHeightMM, pageCanvasHeightPx });
+
+    // Convert canvas to pages by slicing height
+    let yOffset = 0;
+    const pageBlobs: Blob[] = [];
+
+    while (yOffset < canvas.height) {
+      const sliceHeight = Math.min(pageCanvasHeightPx, canvas.height - yOffset);
+
+      // Create page canvas and draw slice
+      const pageCanvas = document.createElement('canvas');
+      pageCanvas.width = canvas.width;
+      pageCanvas.height = sliceHeight;
+      const ctx = pageCanvas.getContext('2d');
+      if (!ctx) throw new Error('Failed to create canvas context for page slice');
+      ctx.drawImage(canvas, 0, yOffset, canvas.width, sliceHeight, 0, 0, canvas.width, sliceHeight);
+
+      // Convert page slice to image data (JPEG for smaller size)
+      const pageData = pageCanvas.toDataURL('image/jpeg', quality);
+
+      // Calculate PDF image height in mm based on width scaling
+      const pageImgHeightMM = (sliceHeight * printableWidthMM) / canvas.width;
+
+      // Add to PDF
+      if (yOffset === 0) {
+        pdf.addImage(pageData, 'JPEG', marginMM, marginMM, printableWidthMM, pageImgHeightMM);
+      } else {
+        pdf.addPage();
+        pdf.addImage(pageData, 'JPEG', marginMM, marginMM, printableWidthMM, pageImgHeightMM);
+      }
+
+      console.log('Added page slice to PDF:', { yOffset, sliceHeight, pageImgHeightMM });
+
+      yOffset += sliceHeight;
     }
 
-    // Create PDF
-    const pdf = new jsPDF({
-      orientation: finalHeight > finalWidth ? 'portrait' : 'landscape',
-      unit: 'mm',
-      format: 'a4'
-    });
-
-    // Convert canvas to image data
-    const imgData = canvas.toDataURL('image/jpeg', quality);
-    
-    // Center the image on the page
-    const x = (pdf.internal.pageSize.getWidth() - finalWidth) / 2;
-    const y = (pdf.internal.pageSize.getHeight() - finalHeight) / 2;
-    
-    // Add image to PDF
-    pdf.addImage(imgData, 'JPEG', x, y, finalWidth, finalHeight);
-
-    console.log('PDF generated successfully with dimensions:', {
-      pdfWidth: pdf.internal.pageSize.getWidth(),
-      pdfHeight: pdf.internal.pageSize.getHeight(),
-      imageWidth: finalWidth,
-      imageHeight: finalHeight,
-      x, y
-    });
-
-    // Return as blob
-    return pdf.output('blob');
+    // Output blob
+    const blob = pdf.output('blob');
+    console.log('PDF generated successfully with blob size:', blob.size);
+    return blob;
   } catch (error) {
     console.error('Error generating PDF:', error);
-    console.error('Error details:', error instanceof Error ? {
-      message: error.message,
-      stack: error.stack
-    } : error);
     throw new Error('Failed to generate PDF from HTML element');
   }
 };

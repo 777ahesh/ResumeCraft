@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation, useParams } from "wouter";
 import { Navbar } from "@/components/navbar";
@@ -7,9 +7,8 @@ import { ResumeControlPanel } from "@/components/resume-control-panel";
 import { StyleConfigPanel } from "@/components/style-config-panel";
 import { Button } from "@/components/ui/button";
 import { useResume, useUpdateResume } from "@/hooks/use-resumes";
-import { ArrowLeft, Save, Download, Undo, Redo, FileText, ChevronDown, Palette, Menu, Settings, Move } from "lucide-react";
+import { ArrowLeft, Save, Download, Undo, Redo, FileText, ChevronDown, Palette, Menu, Settings } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useState } from "react";
 import type { ResumeData, StyleConfig } from "@/types/resume";
 import { downloadResumePDF, resumePDFToBase64 } from "@/lib/pdf-generator";
 import { downloadPDFFromElement, getPDFBase64FromElement } from "@/lib/html-to-pdf";
@@ -40,7 +39,6 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
-import { useRef } from "react";
 
 export default function ResumeEditor() {
   const { user, loading } = useAuth();
@@ -54,10 +52,11 @@ export default function ResumeEditor() {
   
   const [resumeData, setResumeData] = useState<ResumeData | null>(null);
   const [hasChanges, setHasChanges] = useState(false);
-  const [currentTemplate, setCurrentTemplate] = useState<string>("modern-professional");
+  // Keep single template as default for new resumes
+  const [currentTemplate, setCurrentTemplate] = useState<string>("executive-classic");
   const [showControlPanel, setShowControlPanel] = useState(!isMobile);
   const [activePanel, setActivePanel] = useState<'content' | 'style'>('content');
-  const [isInteractiveMode, setIsInteractiveMode] = useState(false);
+  // interactive/move mode removed - feature deprecated
   const [selectedField, setSelectedField] = useState<string | null>(null);
   const [isStylePanelOpen, setIsStylePanelOpen] = useState(false);
   const [fieldStyles, setFieldStyles] = useState<Record<string, any>>({});
@@ -79,13 +78,9 @@ export default function ResumeEditor() {
     lineHeight: 1.5,
   };
 
+  // Single template supported
   const templateOptions = [
-    { id: "modern-professional", name: "Modern Professional", description: "Two-column layout with sidebar" },
-    { id: "creative-edge", name: "Creative Edge", description: "Zigzag timeline with modern cards" },
-    { id: "executive-classic", name: "Executive Classic", description: "Newspaper/magazine style" },
-    { id: "minimalist", name: "Minimalist", description: "Swiss design inspired" },
-    { id: "tech-developer", name: "Tech Developer", description: "Terminal/IDE interface" },
-    { id: "academic-scholar", name: "Academic Scholar", description: "Research paper style" }
+    { id: "executive-classic", name: "Executive Classic", description: "Single editable template" }
   ];
 
   // Field selection handlers
@@ -143,8 +138,9 @@ export default function ResumeEditor() {
       
       console.log('✅ Setting resume data in editor:', JSON.stringify(resumeDataWithDefaults, null, 2));
       setResumeData(resumeDataWithDefaults);
-      setCurrentTemplate(resume.templateId || "modern-professional");
-      
+      // Force single template to avoid legacy template ids interfering
+      setCurrentTemplate("executive-classic");
+       
       // Initialize field styles if they exist
       if (resumeDataWithDefaults.fieldStyles) {
         setFieldStyles(resumeDataWithDefaults.fieldStyles);
@@ -297,7 +293,6 @@ export default function ResumeEditor() {
         variant: "destructive",
       });
     }
-// ...existing code...
   };  const handleDownloadWord = async () => {
     if (!resumeData) return;
     
@@ -391,7 +386,7 @@ export default function ResumeEditor() {
 
             {isMobile ? (
               // Mobile compact toolbar
-              <div className="flex items-center space-x-1">
+              <div className="flex items-center space-x-1 flex-wrap">
                 {/* Template Selector - More compact for mobile */}
                 <Select value={currentTemplate} onValueChange={handleTemplateChange}>
                   <SelectTrigger className="w-20 text-xs h-8">
@@ -405,16 +400,6 @@ export default function ResumeEditor() {
                     ))}
                   </SelectContent>
                 </Select>
-                
-                {/* Interactive Mode Toggle */}
-                <Button
-                  variant={isInteractiveMode ? "default" : "outline"}
-                  onClick={() => setIsInteractiveMode(!isInteractiveMode)}
-                  size="sm"
-                  className="h-8 px-2"
-                >
-                  <Move className="h-3 w-3" />
-                </Button>
                 
                 {/* Save Button */}
                 <Button
@@ -476,7 +461,7 @@ export default function ResumeEditor() {
                 <div className="flex items-center gap-1 sm:gap-2">
                   <Palette className="h-3 w-3 sm:h-4 sm:w-4 text-gray-600" />
                   <Select value={currentTemplate} onValueChange={handleTemplateChange}>
-                    <SelectTrigger className="w-48 text-xs sm:text-sm">
+                    <SelectTrigger className="w-32 sm:w-48 text-xs sm:text-sm">
                       <SelectValue placeholder="Select template" />
                     </SelectTrigger>
                     <SelectContent>
@@ -493,16 +478,8 @@ export default function ResumeEditor() {
 
                 <div className="h-4 sm:h-6 w-px bg-gray-300"></div>
                 
-                {/* Interactive Mode Toggle */}
-                <Button
-                  variant={isInteractiveMode ? "default" : "outline"}
-                  onClick={() => setIsInteractiveMode(!isInteractiveMode)}
-                  size="default"
-                >
-                  <Move className="mr-1 h-4 w-4" />
-                  {isInteractiveMode ? "Exit Move" : "Move Mode"}
-                </Button>
-                
+                {/* Interactive/Move mode removed */}
+
                 <Button
                   variant="outline"
                   onClick={handleSave}
@@ -541,7 +518,7 @@ export default function ResumeEditor() {
       {/* Editor Content */}
       <div className="flex-1 flex overflow-hidden">
         {!isMobile && (
-          <div className="w-80 border-r border-gray-200 bg-white overflow-y-auto" style={{ maxHeight: '100vh' }}>
+          <div className="w-80 border-r border-gray-200 bg-white overflow-y-auto overflow-x-hidden" style={{ maxHeight: '100vh' }}>
             {activePanel === 'content' ? (
               <ResumeControlPanel
                 resumeData={resumeData}
@@ -558,7 +535,7 @@ export default function ResumeEditor() {
             )}
           </div>
         )}
-        <div className="flex-1 bg-gray-100 overflow-auto" ref={resumeCanvasRef}>
+        <div className="flex-1 bg-gray-100 overflow-auto" style={{ overflowX: 'hidden' }} ref={resumeCanvasRef}>
           {isMobile ? (
             <div className="h-full w-full overflow-auto p-2">
               <div className="flex justify-center">
@@ -567,7 +544,6 @@ export default function ResumeEditor() {
                     resumeData={resumeData}
                     template={currentTemplate}
                     styleConfig={resumeData?.styleConfig}
-                    isInteractiveMode={isInteractiveMode}
                     onResumeDataChange={handleDataChange}
                     selectedField={selectedField}
                     onFieldSelect={handleFieldSelect}
@@ -585,7 +561,6 @@ export default function ResumeEditor() {
                     resumeData={resumeData}
                     template={currentTemplate}
                     styleConfig={resumeData?.styleConfig}
-                    isInteractiveMode={isInteractiveMode}
                     onResumeDataChange={handleDataChange}
                     selectedField={selectedField}
                     onFieldSelect={handleFieldSelect}

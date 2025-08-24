@@ -149,6 +149,9 @@ export function ResumeCanvas({
 }: ResumeCanvasProps) {
   const isMobile = useIsMobile();
 
+  // DEBUG: log incoming styleConfig to verify editor changes propagate
+  console.log('ResumeCanvas render - styleConfig:', styleConfig);
+
   // Canvas elements state (text, shape, textarea, etc.)
   const [canvasElements, setCanvasElements] = useState<any[]>([]);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; visible: boolean }>({ x: 0, y: 0, visible: false });
@@ -220,241 +223,336 @@ export function ResumeCanvas({
     </div>
   );
 
+  // Generate dynamic styles from styleConfig so editor changes apply immediately
+  const getDynamicStyles = (): React.CSSProperties => {
+    if (!styleConfig) return {};
+    const spacingMap: Record<string, string> = {
+      tight: '0.5rem',
+      normal: '1rem',
+      relaxed: '1.5rem'
+    };
+    return {
+      fontFamily: styleConfig.fontFamily,
+      fontSize: `${styleConfig.fontSize}px`,
+      lineHeight: styleConfig.lineHeight,
+      color: styleConfig.textColor,
+      backgroundColor: styleConfig.backgroundColor,
+      // expose as CSS variables for easier usage in child elements
+      ['--primary-color' as any]: styleConfig.primaryColor,
+      ['--secondary-color' as any]: styleConfig.secondaryColor,
+      ['--text-color' as any]: styleConfig.textColor,
+      ['--bg-color' as any]: styleConfig.backgroundColor,
+      ['--border-radius' as any]: `${styleConfig.borderRadius}px`,
+      ['--spacing' as any]: spacingMap[styleConfig.spacing],
+    } as React.CSSProperties;
+  };
+
+  const dynamicStyles = getDynamicStyles();
+
+  // update TemplateWrapper to include dynamic styles
+  const StyledTemplateWrapper = ({ children }: { children: React.ReactNode }) => (
+    <div 
+      className={`bg-white ${isMobile ? 'rounded-none shadow-none w-full' : 'rounded-lg shadow-lg'} resume-canvas overflow-hidden`}
+      style={{ 
+        width: '100%',
+        maxWidth: isMobile ? '100%' : '8.5in',
+        boxSizing: 'border-box',
+        minHeight: isMobile ? 'auto' : '11in',
+        margin: '0 auto',
+        ...dynamicStyles
+      }}
+    >
+      {children}
+    </div>
+  );
+
   // Executive Classic Template with responsive design and inline editing
-  const ExecutiveClassicTemplate = () => (
-    <TemplateWrapper>
-      <div className={`${isMobile ? 'p-4 text-sm' : 'p-8 text-base'}`}>
-        {/* Executive Header with Letterhead Style */}
-        <div className={`border-b-2 border-gray-900 ${isMobile ? 'pb-4 mb-6' : 'pb-6 mb-8'}`}>
-          <div className="text-center">
-            <h1 className={`${isMobile ? 'text-2xl' : 'text-5xl'} font-serif font-bold text-gray-900 ${isMobile ? 'mb-2' : 'mb-3'} tracking-wider`}>
-              <EditableText
-                value={resumeData.personalInfo.name?.toUpperCase()}
-                onSave={(value) => onResumeDataChange?.({ 
-                  ...resumeData, 
-                  personalInfo: { ...resumeData.personalInfo, name: value } 
-                })}
-                className="inline-block"
-                placeholder="YOUR NAME"
-                fieldId="personal-name"
-                fieldType="header"
-                isSelected={selectedField === "personal-name"}
-                onFieldSelect={onFieldSelect}
-                onStylePanelOpen={onStylePanelOpen}
-              />
-            </h1>
-            <div className={`${isMobile ? 'w-16 h-0.5' : 'w-24 h-1'} bg-gray-900 mx-auto ${isMobile ? 'mb-2' : 'mb-4'}`}></div>
-            <p className={`${isMobile ? 'text-base' : 'text-lg'} text-gray-700 ${isMobile ? 'mb-2' : 'mb-4'} font-serif italic`}>
-              <EditableText
-                value={resumeData.personalInfo.title}
-                onSave={(value) => onResumeDataChange?.({ 
-                  ...resumeData, 
-                  personalInfo: { ...resumeData.personalInfo, title: value } 
-                })}
-                className="inline-block"
-                placeholder="Executive Professional"
-                fieldId="personal-title"
-                fieldType="subtitle"
-                fieldStyle={fieldStyles["personal-title"]}
-                isSelected={selectedField === "personal-title"}
-                onFieldSelect={onFieldSelect}
-                onStylePanelOpen={onStylePanelOpen}
-              />
-            </p>
-            
-            {/* Contact info in newspaper style */}
-            <div className={`flex ${isMobile ? 'flex-col gap-2' : 'justify-center items-center gap-8'} ${isMobile ? 'text-xs' : 'text-sm'} text-gray-600 font-serif`}>
-              {resumeData.personalInfo.email && (
-                <span className="flex items-center justify-center">
-                  <span className={`${isMobile ? 'w-1 h-1' : 'w-2 h-2'} bg-gray-900 rounded-full mr-2`}></span>
-                  <EditableText
-                    value={resumeData.personalInfo.email}
-                    onSave={(value) => onResumeDataChange?.({ 
-                      ...resumeData, 
-                      personalInfo: { ...resumeData.personalInfo, email: value } 
-                    })}
-                    placeholder="email@example.com"
-                    fieldId="personal-email"
-                    fieldType="contact"
-                    fieldStyle={fieldStyles["personal-email"]}
-                    isSelected={selectedField === "personal-email"}
-                    onFieldSelect={onFieldSelect}
-                    onStylePanelOpen={onStylePanelOpen}
-                  />
-                </span>
-              )}
-              {resumeData.personalInfo.phone && (
-                <span className="flex items-center justify-center">
-                  <span className={`${isMobile ? 'w-1 h-1' : 'w-2 h-2'} bg-gray-900 rounded-full mr-2`}></span>
-                  <EditableText
-                    value={resumeData.personalInfo.phone}
-                    onSave={(value) => onResumeDataChange?.({ 
-                      ...resumeData, 
-                      personalInfo: { ...resumeData.personalInfo, phone: value } 
-                    })}
-                    placeholder="(555) 123-4567"
-                    fieldId="personal-phone"
-                    fieldType="contact"
-                    isSelected={selectedField === "personal-phone"}
-                    onFieldSelect={onFieldSelect}
-                    onStylePanelOpen={onStylePanelOpen}
-                  />
-                </span>
-              )}
-              {resumeData.personalInfo.location && (
-                <span className="flex items-center justify-center">
-                  <span className={`${isMobile ? 'w-1 h-1' : 'w-2 h-2'} bg-gray-900 rounded-full mr-2`}></span>
-                  <EditableText
-                    value={resumeData.personalInfo.location}
-                    onSave={(value) => onResumeDataChange?.({ 
-                      ...resumeData, 
-                      personalInfo: { ...resumeData.personalInfo, location: value } 
-                    })}
-                    placeholder="City, State"
-                    fieldId="personal-location"
-                    fieldType="contact"
-                    isSelected={selectedField === "personal-location"}
-                    onFieldSelect={onFieldSelect}
-                    onStylePanelOpen={onStylePanelOpen}
-                  />
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
+  const ExecutiveClassicTemplate = () => {
+    // Use the FieldStyle type so props passed to EditableText match types
+    const baseTextStyle: FieldStyle = {
+      color: styleConfig?.textColor || '#1F2937',
+      fontFamily: styleConfig?.fontFamily || 'Inter',
+      fontSize: styleConfig?.fontSize,
+      lineHeight: styleConfig?.lineHeight
+    };
 
-        {/* Executive Summary */}
-        {resumeData.personalInfo.summary && (
-          <div className={`${isMobile ? 'mb-6' : 'mb-8'}`}>
-            <h2 className={`${isMobile ? 'text-lg' : 'text-xl'} font-serif font-bold text-gray-900 ${isMobile ? 'mb-3' : 'mb-4'} border-b border-gray-300 pb-2`}>
-              EXECUTIVE SUMMARY
-            </h2>
-            <div className={`${isMobile ? 'text-sm' : 'text-base'} text-gray-700 font-serif leading-relaxed`}>
-              <EditableText
-                value={resumeData.personalInfo.summary}
-                onSave={(value) => onResumeDataChange?.({ 
-                  ...resumeData, 
-                  personalInfo: { ...resumeData.personalInfo, summary: value } 
-                })}
-                multiline
-                placeholder="Seasoned executive with expertise in strategic leadership, operational excellence, and driving organizational growth."
-                fieldId="personal-summary"
-                fieldType="paragraph"
-                fieldStyle={fieldStyles["personal-summary"]}
-                isSelected={selectedField === "personal-summary"}
-                onFieldSelect={onFieldSelect}
-                onStylePanelOpen={onStylePanelOpen}
-              />
-            </div>
-          </div>
-        )}
+    // Helper to merge global baseTextStyle, per-field overrides from editor, and ad-hoc overrides
+    const resolveFieldStyle = (fieldId: string, overrides: Partial<FieldStyle> = {}): FieldStyle => {
+      const perField = fieldStyles?.[fieldId] || {};
+      const merged: FieldStyle = { ...baseTextStyle, ...perField, ...overrides };
+      // Make small mobile adjustments to prevent overflow and large fonts
+      if (isMobile && merged.fontSize) {
+        merged.fontSize = Math.max(10, Math.round((merged.fontSize as number) * 0.95));
+      }
+      return merged;
+    };
 
-        {/* Experience */}
-        {resumeData.experiences && resumeData.experiences.length > 0 && (
-          <div className={`${isMobile ? 'mb-6' : 'mb-8'}`}>
-            <h2 className={`${isMobile ? 'text-lg' : 'text-xl'} font-serif font-bold text-gray-900 ${isMobile ? 'mb-3' : 'mb-4'} border-b border-gray-300 pb-2`}>
-              PROFESSIONAL EXPERIENCE
-            </h2>
-            {resumeData.experiences.map((exp, index) => (
-              <div key={exp.id} className={`${isMobile ? 'mb-4' : 'mb-6'}`}>
-                <div className={`flex ${isMobile ? 'flex-col' : 'justify-between items-start'} ${isMobile ? 'mb-1' : 'mb-2'}`}>
-                  <h3 className={`${isMobile ? 'text-base' : 'text-lg'} font-serif font-semibold text-gray-900`}>
+    const accentColor = styleConfig?.primaryColor || '#374151';
+
+    return (
+      <StyledTemplateWrapper>
+        <div className={`${isMobile ? 'p-4 text-sm' : 'p-8 text-base'}`}>
+          {/* Executive Header with Letterhead Style */}
+          <div className={`border-b-2`} style={{ borderColor: accentColor, paddingBottom: isMobile ? 16 : 24, marginBottom: isMobile ? 16 : 32 }}>
+            <div className="text-center">
+              <h1 style={{ marginBottom: isMobile ? 8 : 12 }}>
+                <EditableText
+                  value={resumeData.personalInfo.name?.toUpperCase()}
+                  onSave={(value) => onResumeDataChange?.({ 
+                    ...resumeData, 
+                    personalInfo: { ...resumeData.personalInfo, name: value } 
+                  })}
+                  className="inline-block"
+                  placeholder="YOUR NAME"
+                  fieldId="personal-name"
+                  fieldType="header"
+                  fieldStyle={resolveFieldStyle('personal-name', { fontSize: (styleConfig?.fontSize ? styleConfig.fontSize * 2.5 : 40) })}
+                  isSelected={selectedField === "personal-name"}
+                  onFieldSelect={onFieldSelect}
+                  onStylePanelOpen={onStylePanelOpen}
+                />
+              </h1>
+
+              <div style={{ width: isMobile ? 64 : 96, height: isMobile ? 2 : 4, background: accentColor, margin: '8px auto 12px' }}></div>
+
+              <p style={{ marginBottom: isMobile ? 8 : 16 }}>
+                <EditableText
+                  value={resumeData.personalInfo.title}
+                  onSave={(value) => onResumeDataChange?.({ 
+                    ...resumeData, 
+                    personalInfo: { ...resumeData.personalInfo, title: value } 
+                  })}
+                  className="inline-block"
+                  placeholder="Executive Professional"
+                  fieldId="personal-title"
+                  fieldType="subtitle"
+                  fieldStyle={resolveFieldStyle('personal-title', { color: styleConfig?.secondaryColor || '#6B7280', fontSize: (styleConfig?.fontSize ? styleConfig.fontSize * 1.2 : 18) })}
+                  isSelected={selectedField === "personal-title"}
+                  onFieldSelect={onFieldSelect}
+                  onStylePanelOpen={onStylePanelOpen}
+                />
+              </p>
+
+              {/* Contact info */}
+              <div className={`flex ${isMobile ? 'flex-col gap-2' : 'justify-center items-center gap-8'}`} style={{ color: styleConfig?.secondaryColor || '#6B7280', fontFamily: styleConfig?.fontFamily || 'Inter' }}>
+                {resumeData.personalInfo.email && (
+                  <span className="flex items-center justify-center">
+                    <span style={{ width: isMobile ? 4 : 8, height: isMobile ? 4 : 8, background: accentColor, borderRadius: '50%', marginRight: 8 }}></span>
                     <EditableText
-                      value={exp.title}
-                      onSave={(value) => {
-                        const updatedExperiences = [...resumeData.experiences];
-                        updatedExperiences[index] = { ...exp, title: value };
-                        onResumeDataChange?.({ 
-                          ...resumeData, 
-                          experiences: updatedExperiences 
-                        });
-                      }}
-                      placeholder="Position Title"
-                      fieldId={`experience-title-${index}`}
-                      fieldType="heading"
-                      fieldStyle={fieldStyles[`experience-title-${index}`]}
-                      isSelected={selectedField === `experience-title-${index}`}
-                      onFieldSelect={onFieldSelect}
-                      onStylePanelOpen={onStylePanelOpen}
-                    />
-                  </h3>
-                  <span className={`${isMobile ? 'text-sm' : 'text-base'} text-gray-600 font-serif italic ${isMobile ? 'mb-1' : ''}`}>
-                    <EditableText
-                      value={`${exp.startYear} - ${exp.endYear}`}
-                      onSave={(value) => {
-                        const [start, end] = value.split(' - ');
-                        const updatedExperiences = [...resumeData.experiences];
-                        updatedExperiences[index] = { ...exp, startYear: start || '', endYear: end || '' };
-                        onResumeDataChange?.({ 
-                          ...resumeData, 
-                          experiences: updatedExperiences 
-                        });
-                      }}
-                      placeholder="Jan 2020 - Present"
-                      fieldId={`experience-dates-${index}`}
-                      fieldType="text"
-                      isSelected={selectedField === `experience-dates-${index}`}
+                      value={resumeData.personalInfo.email}
+                      onSave={(value) => onResumeDataChange?.({ 
+                        ...resumeData, 
+                        personalInfo: { ...resumeData.personalInfo, email: value } 
+                      })}
+                      placeholder="email@example.com"
+                      fieldId="personal-email"
+                      fieldType="contact"
+                      fieldStyle={resolveFieldStyle('personal-email', { fontSize: styleConfig?.fontSize, color: styleConfig?.textColor })}
+                      isSelected={selectedField === "personal-email"}
                       onFieldSelect={onFieldSelect}
                       onStylePanelOpen={onStylePanelOpen}
                     />
                   </span>
-                </div>
-                <h4 className={`${isMobile ? 'text-sm' : 'text-base'} font-serif text-gray-800 ${isMobile ? 'mb-2' : 'mb-3'} italic`}>
-                  <EditableText
-                    value={exp.company}
-                    onSave={(value) => {
-                      const updatedExperiences = [...resumeData.experiences];
-                      updatedExperiences[index] = { ...exp, company: value };
-                      onResumeDataChange?.({ 
-                        ...resumeData, 
-                        experiences: updatedExperiences 
-                      });
-                    }}
-                    placeholder="Company Name"
-                    fieldId={`experience-company-${index}`}
-                    fieldType="heading"
-                    isSelected={selectedField === `experience-company-${index}`}
-                    onFieldSelect={onFieldSelect}
-                    onStylePanelOpen={onStylePanelOpen}
-                  />
-                </h4>
-                <div className={`${isMobile ? 'text-sm' : 'text-base'} text-gray-700 font-serif leading-relaxed`}>
-                  <EditableText
-                    value={exp.description}
-                    onSave={(value) => {
-                      const updatedExperiences = [...resumeData.experiences];
-                      updatedExperiences[index] = { ...exp, description: value };
-                      onResumeDataChange?.({ 
-                        ...resumeData, 
-                        experiences: updatedExperiences 
-                      });
-                    }}
-                    multiline
-                    placeholder="• Led strategic initiatives resulting in 25% revenue growth
-• Managed cross-functional teams of 50+ professionals
-• Implemented operational improvements reducing costs by 15%"
-                    fieldId={`experience-description-${index}`}
-                    fieldType="paragraph"
-                    isSelected={selectedField === `experience-description-${index}`}
-                    onFieldSelect={onFieldSelect}
-                    onStylePanelOpen={onStylePanelOpen}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+                )}
 
-        {/* Education */}
-        {resumeData.education && resumeData.education.length > 0 && (
-          <div className={`${isMobile ? 'mb-6' : 'mb-8'}`}>
-            <h2 className={`${isMobile ? 'text-lg' : 'text-xl'} font-serif font-bold text-gray-900 ${isMobile ? 'mb-3' : 'mb-4'} border-b border-gray-300 pb-2`}>
-              EDUCATION
-            </h2>
-            {resumeData.education.map((edu, index) => (
-              <div key={edu.id} className={`${isMobile ? 'mb-3' : 'mb-4'}`}>
-                <div className={`flex ${isMobile ? 'flex-col' : 'justify-between items-start'}`}>
-                  <h3 className={`${isMobile ? 'text-base' : 'text-lg'} font-serif font-semibold text-gray-900`}>
+                {resumeData.personalInfo.phone && (
+                  <span className="flex items-center justify-center">
+                    <span style={{ width: isMobile ? 4 : 8, height: isMobile ? 4 : 8, background: accentColor, borderRadius: '50%', marginRight: 8 }}></span>
+                    <EditableText
+                      value={resumeData.personalInfo.phone}
+                      onSave={(value) => onResumeDataChange?.({ 
+                        ...resumeData, 
+                        personalInfo: { ...resumeData.personalInfo, phone: value } 
+                      })}
+                      placeholder="(555) 123-4567"
+                      fieldId="personal-phone"
+                      fieldType="contact"
+                      fieldStyle={resolveFieldStyle('personal-phone', { fontSize: styleConfig?.fontSize, color: styleConfig?.textColor })}
+                      isSelected={selectedField === "personal-phone"}
+                      onFieldSelect={onFieldSelect}
+                      onStylePanelOpen={onStylePanelOpen}
+                    />
+                  </span>
+                )}
+
+                {resumeData.personalInfo.location && (
+                  <span className="flex items-center justify-center">
+                    <span style={{ width: isMobile ? 4 : 8, height: isMobile ? 4 : 8, background: accentColor, borderRadius: '50%', marginRight: 8 }}></span>
+                    <EditableText
+                      value={resumeData.personalInfo.location}
+                      onSave={(value) => onResumeDataChange?.({ 
+                        ...resumeData, 
+                        personalInfo: { ...resumeData.personalInfo, location: value } 
+                      })}
+                      placeholder="City, State"
+                      fieldId="personal-location"
+                      fieldType="contact"
+                      fieldStyle={resolveFieldStyle('personal-location', { fontSize: styleConfig?.fontSize, color: styleConfig?.textColor })}
+                      isSelected={selectedField === "personal-location"}
+                      onFieldSelect={onFieldSelect}
+                      onStylePanelOpen={onStylePanelOpen}
+                    />
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Executive Summary */}
+          {resumeData.personalInfo.summary && (
+            <div style={{ marginBottom: isMobile ? 16 : 24 }}>
+              <h2 style={{ borderBottom: `1px solid ${accentColor}`, paddingBottom: 8, marginBottom: 8 }}>
+                <EditableText
+                  value={"EXECUTIVE SUMMARY"}
+                  onSave={() => { /* title static */ }}
+                  className="inline-block"
+                  placeholder="EXECUTIVE SUMMARY"
+                  fieldId="section-summary-title"
+                  fieldType="section"
+                  fieldStyle={resolveFieldStyle('section-summary-title', { fontWeight: 'bold' })}
+                />
+              </h2>
+              <div style={{ color: styleConfig?.textColor, fontFamily: styleConfig?.fontFamily }}>
+                <EditableText
+                  value={resumeData.personalInfo.summary}
+                  onSave={(value) => onResumeDataChange?.({ 
+                    ...resumeData, 
+                    personalInfo: { ...resumeData.personalInfo, summary: value } 
+                  })}
+                  multiline
+                  placeholder="Seasoned executive..."
+                  fieldId="personal-summary"
+                  fieldType="paragraph"
+                  fieldStyle={resolveFieldStyle('personal-summary', { fontSize: styleConfig?.fontSize, lineHeight: styleConfig?.lineHeight })}
+                  isSelected={selectedField === "personal-summary"}
+                  onFieldSelect={onFieldSelect}
+                  onStylePanelOpen={onStylePanelOpen}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Experience */}
+          {resumeData.experiences && resumeData.experiences.length > 0 && (
+            <div style={{ marginBottom: isMobile ? 16 : 24 }}>
+              <h2 style={{ borderBottom: `1px solid ${accentColor}`, paddingBottom: 8, marginBottom: 12 }}>
+                <EditableText
+                  value={"PROFESSIONAL EXPERIENCE"}
+                  onSave={() => { /* title static */ }}
+                  fieldId="section-experience-title"
+                  fieldType="section"
+                  fieldStyle={resolveFieldStyle('section-experience-title', { fontWeight: 'bold' })}
+                />
+              </h2>
+              {resumeData.experiences.map((exp, index) => (
+                <div key={exp.id} style={{ marginBottom: isMobile ? 12 : 16 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                    <div>
+                      <h3 style={{ margin: 0 }}>
+                        <EditableText
+                          value={exp.title}
+                          onSave={(value) => {
+                            const updatedExperiences = [...resumeData.experiences];
+                            updatedExperiences[index] = { ...exp, title: value };
+                            onResumeDataChange?.({ 
+                              ...resumeData, 
+                              experiences: updatedExperiences 
+                            });
+                          }}
+                          placeholder="Position Title"
+                          fieldId={`experience-title-${index}`}
+                          fieldType="heading"
+                          fieldStyle={resolveFieldStyle(`experience-title-${index}`, { fontWeight: '600' })}
+                          isSelected={selectedField === `experience-title-${index}`}
+                          onFieldSelect={onFieldSelect}
+                          onStylePanelOpen={onStylePanelOpen}
+                        />
+                      </h3>
+                      <p style={{ margin: '4px 0 0', color: styleConfig?.secondaryColor }}>
+                        <EditableText
+                          value={exp.company}
+                          onSave={(value) => {
+                            const updatedExperiences = [...resumeData.experiences];
+                            updatedExperiences[index] = { ...exp, company: value };
+                            onResumeDataChange?.({ 
+                              ...resumeData, 
+                              experiences: updatedExperiences 
+                            });
+                          }}
+                          placeholder="Company Name"
+                          fieldId={`experience-company-${index}`}
+                          fieldType="subheading"
+                          fieldStyle={resolveFieldStyle(`experience-company-${index}`, { color: styleConfig?.primaryColor })}
+                          isSelected={selectedField === `experience-company-${index}`}
+                          onFieldSelect={onFieldSelect}
+                          onStylePanelOpen={onStylePanelOpen}
+                        />
+                      </p>
+                    </div>
+                    <div style={{ textAlign: 'right', color: styleConfig?.secondaryColor }}>
+                      <EditableText
+                        value={`${exp.startYear} - ${exp.endYear}`}
+                        onSave={(value) => {
+                          const [start, end] = value.split(' - ');
+                          const updatedExperiences = [...resumeData.experiences];
+                          updatedExperiences[index] = { ...exp, startYear: start || '', endYear: end || '' };
+                          onResumeDataChange?.({ 
+                            ...resumeData, 
+                            experiences: updatedExperiences 
+                          });
+                        }}
+                        placeholder="Jan 2020 - Present"
+                        fieldId={`experience-dates-${index}`}
+                        fieldType="text"
+                        fieldStyle={resolveFieldStyle(`experience-dates-${index}`, { color: styleConfig?.secondaryColor })}
+                        isSelected={selectedField === `experience-dates-${index}`}
+                        onFieldSelect={onFieldSelect}
+                        onStylePanelOpen={onStylePanelOpen}
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ color: styleConfig?.textColor, fontFamily: styleConfig?.fontFamily }}>
+                    <EditableText
+                      value={exp.description}
+                      onSave={(value) => {
+                        const updatedExperiences = [...resumeData.experiences];
+                        updatedExperiences[index] = { ...exp, description: value };
+                        onResumeDataChange?.({ 
+                          ...resumeData, 
+                          experiences: updatedExperiences 
+                        });
+                      }}
+                      multiline
+                      placeholder="• Led strategic initiatives..."
+                      fieldId={`experience-description-${index}`}
+                      fieldType="paragraph"
+                      fieldStyle={resolveFieldStyle(`experience-description-${index}`, { fontSize: styleConfig?.fontSize })}
+                      isSelected={selectedField === `experience-description-${index}`}
+                      onFieldSelect={onFieldSelect}
+                      onStylePanelOpen={onStylePanelOpen}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Education */}
+          {resumeData.education && resumeData.education.length > 0 && (
+            <div style={{ marginBottom: isMobile ? 16 : 24 }}>
+              <h2 style={{ borderBottom: `1px solid ${accentColor}`, paddingBottom: 8, marginBottom: 12 }}>
+                <EditableText
+                  value={"EDUCATION"}
+                  onSave={() => {}}
+                  fieldId="section-education-title"
+                  fieldType="section"
+                  fieldStyle={resolveFieldStyle('section-education-title', { fontWeight: 'bold' })}
+                />
+              </h2>
+              {resumeData.education.map((edu, index) => (
+                <div key={edu.id} style={{ marginBottom: isMobile ? 12 : 16 }}>
+                  <h3 style={{ margin: 0 }}>
                     <EditableText
                       value={edu.degree}
                       onSave={(value) => {
@@ -468,12 +566,33 @@ export function ResumeCanvas({
                       placeholder="Master of Business Administration"
                       fieldId={`education-degree-${index}`}
                       fieldType="heading"
+                      fieldStyle={resolveFieldStyle(`education-degree-${index}`, { fontWeight: '600' })}
                       isSelected={selectedField === `education-degree-${index}`}
                       onFieldSelect={onFieldSelect}
                       onStylePanelOpen={onStylePanelOpen}
                     />
                   </h3>
-                  <span className={`${isMobile ? 'text-sm' : 'text-base'} text-gray-600 font-serif italic`}>
+                  <p style={{ margin: '4px 0 0', color: styleConfig?.secondaryColor }}>
+                    <EditableText
+                      value={edu.institution}
+                      onSave={(value) => {
+                        const updatedEducation = [...resumeData.education];
+                        updatedEducation[index] = { ...edu, institution: value };
+                        onResumeDataChange?.({ 
+                          ...resumeData, 
+                          education: updatedEducation 
+                        });
+                      }}
+                      placeholder="Harvard Business School"
+                      fieldId={`education-institution-${index}`}
+                      fieldType="subheading"
+                      fieldStyle={resolveFieldStyle(`education-institution-${index}`, { color: styleConfig?.primaryColor })}
+                      isSelected={selectedField === `education-institution-${index}`}
+                      onFieldSelect={onFieldSelect}
+                      onStylePanelOpen={onStylePanelOpen}
+                    />
+                  </p>
+                  <div style={{ color: styleConfig?.textColor }}>
                     <EditableText
                       value={edu.graduationYear}
                       onSave={(value) => {
@@ -487,85 +606,75 @@ export function ResumeCanvas({
                       placeholder="2018"
                       fieldId={`education-year-${index}`}
                       fieldType="text"
+                      fieldStyle={resolveFieldStyle(`education-year-${index}`, { color: styleConfig?.secondaryColor })}
                       isSelected={selectedField === `education-year-${index}`}
                       onFieldSelect={onFieldSelect}
                       onStylePanelOpen={onStylePanelOpen}
                     />
-                  </span>
-                </div>
-                <p className={`${isMobile ? 'text-sm' : 'text-base'} text-gray-800 font-serif italic`}>
-                  <EditableText
-                    value={edu.institution}
-                    onSave={(value) => {
-                      const updatedEducation = [...resumeData.education];
-                      updatedEducation[index] = { ...edu, institution: value };
-                      onResumeDataChange?.({ 
-                        ...resumeData, 
-                        education: updatedEducation 
-                      });
-                    }}
-                    placeholder="Harvard Business School"
-                    fieldId={`education-institution-${index}`}
-                    fieldType="heading"
-                    isSelected={selectedField === `education-institution-${index}`}
-                    onFieldSelect={onFieldSelect}
-                    onStylePanelOpen={onStylePanelOpen}
-                  />
-                </p>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Skills */}
-        {resumeData.skills && resumeData.skills.length > 0 && (
-          <div className={`${isMobile ? 'mb-6' : 'mb-8'}`}>
-            <h2 className={`${isMobile ? 'text-lg' : 'text-xl'} font-serif font-bold text-gray-900 ${isMobile ? 'mb-3' : 'mb-4'} border-b border-gray-300 pb-2`}>
-              CORE COMPETENCIES
-            </h2>
-            <div className={`grid ${isMobile ? 'grid-cols-1 gap-2' : 'grid-cols-3 gap-4'} ${isMobile ? 'text-sm' : 'text-base'} text-gray-700 font-serif`}>
-              {resumeData.skills.map((skill, index) => (
-                <div key={skill.id} className="flex items-center">
-                  <span className={`${isMobile ? 'w-1 h-1' : 'w-2 h-2'} bg-gray-900 rounded-full mr-2`}></span>
-                  <EditableText
-                    value={skill.name}
-                    onSave={(value) => {
-                      const updatedSkills = [...resumeData.skills];
-                      updatedSkills[index] = { ...skill, name: value };
-                      onResumeDataChange?.({ 
-                        ...resumeData, 
-                        skills: updatedSkills 
-                      });
-                    }}
-                    placeholder="Strategic Planning"
-                    fieldId={`skill-${index}`}
-                    fieldType="text"
-                    fieldStyle={fieldStyles[`skill-${index}`]}
-                    isSelected={selectedField === `skill-${index}`}
-                    onFieldSelect={onFieldSelect}
-                    onStylePanelOpen={onStylePanelOpen}
-                  />
+                  </div>
                 </div>
               ))}
             </div>
-          </div>
-        )}
-      </div>
-    </TemplateWrapper>
-  );
+          )}
 
-  // Template selector - for now just showing Executive Classic
-  const renderTemplate = () => {
-    switch (template) {
-      case "executive-classic":
-        return <ExecutiveClassicTemplate />;
-      default:
-        return <ExecutiveClassicTemplate />;
-    }
+          {/* Skills */}
+          {resumeData.skills && resumeData.skills.length > 0 && (
+            <div style={{ marginBottom: isMobile ? 16 : 24 }}>
+              <h2 style={{ borderBottom: `1px solid ${accentColor}`, paddingBottom: 8, marginBottom: 12 }}>
+                <EditableText
+                    value={"CORE COMPETENCIES"}
+                    onSave={() => {}}
+                    fieldId="section-skills-title"
+                    fieldType="section"
+                    fieldStyle={resolveFieldStyle('section-skills-title', { fontWeight: 'bold' })}
+                />
+              </h2>
+              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                {resumeData.skills.map((skill, index) => (
+                  <div key={skill.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ width: 8, height: 8, background: `${accentColor}88`, borderRadius: 999 }}></div>
+                    <EditableText
+                      value={skill.name}
+                      onSave={(value) => {
+                        const updatedSkills = [...resumeData.skills];
+                        updatedSkills[index] = { ...skill, name: value };
+                        onResumeDataChange?.({ 
+                          ...resumeData, 
+                          skills: updatedSkills 
+                        });
+                      }}
+                      placeholder="Strategic Planning"
+                      fieldId={`skill-${index}`}
+                      fieldType="text"
+                      fieldStyle={resolveFieldStyle(`skill-${index}`, { fontSize: styleConfig?.fontSize })}
+                      isSelected={selectedField === `skill-${index}`}
+                      onFieldSelect={onFieldSelect}
+                      onStylePanelOpen={onStylePanelOpen}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </StyledTemplateWrapper>
+    );
   };
 
+  // Template selector - simplified: always render the single editable ExecutiveClassic template
+  const renderTemplate = () => <ExecutiveClassicTemplate />;
+
   return (
-    <div className="flex-1 bg-gray-100 overflow-auto">
+    <div className="flex-1 bg-gray-100" style={{ overflowX: 'hidden' }}>
+      {/* Debug badge to visualize the active style config on the canvas */}
+      {/* <div style={{ position: 'absolute', right: 16, top: 80, zIndex: 60, }}>
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: '#fff', borderRadius: 8, boxShadow: '0 2px 6px rgba(0,0,0,0.12)', fontSize: 12 }}>
+          <div style={{ width: 14, height: 14, borderRadius: 3, background: styleConfig?.primaryColor || '#ccc', border: '1px solid #eee' }} />
+          <div style={{ color: '#111' }}>{styleConfig?.primaryColor || 'no-primary'}</div>
+          <div style={{ color: '#666' }}>{styleConfig?.fontFamily || 'no-font'}</div>
+        </div>
+      </div> */}
+
       <div className={`${isMobile ? 'p-2' : 'p-4 lg:p-8'} min-h-full`}>
         <div className="flex justify-center">
           <div className={`w-full ${isMobile ? 'max-w-full' : 'max-w-4xl'} relative`} style={{ minHeight: '600px' }}
@@ -629,9 +738,9 @@ export function ResumeCanvas({
               </>
             ) : null}
             {renderTemplate()}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
+           </div>
+         </div>
+       </div>
+     </div>
+   );
+ }

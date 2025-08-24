@@ -102,10 +102,16 @@
   background: white;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
   transition: all 0.3s ease;
+  width: 100%;
+  max-width: 8.5in; /* keep design width but allow scaling */
 }
 
-.resume-canvas:hover {
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+/* Mobile toolbar helper to avoid buttons sticking */
+.header-toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+@media (max-width: 768px) {
+  .resume-canvas { max-width: 100%; }
+  .header-toolbar { gap: 6px; }
 }
 
 /* Print styles for PDF generation */
@@ -125,13 +131,5 @@
     width: 8.5in !important;
     height: 11in !important;
     box-shadow: none !important;
-  }
-}
-
-/* Mobile optimizations */
-@media (max-width: 768px) {
-  .resume-canvas {
-    transform: scale(0.7);
-    transform-origin: top left;
   }
 }
