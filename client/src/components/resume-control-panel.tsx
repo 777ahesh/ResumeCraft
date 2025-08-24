@@ -240,8 +240,8 @@ export function ResumeControlPanel({ resumeData, onChange }: ResumeControlPanelP
   };
 
   return (
-    <div className={`${isMobile ? 'w-full' : 'w-80'} bg-gray-50 border-r border-gray-200 overflow-y-auto`}>
-      <div className={`${isMobile ? 'p-4' : 'p-6'}`}>
+    <div className={`${isMobile ? 'w-full h-full' : 'w-80'} bg-gray-50 ${!isMobile ? 'border-r border-gray-200' : ''} overflow-y-auto`}>
+      <div className={`${isMobile ? 'p-3' : 'p-6'}`}>
         <h2 className={`${isMobile ? 'text-base' : 'text-lg'} font-semibold text-gray-900 mb-4`}>Edit Resume</h2>
         
         <div className="space-y-4">

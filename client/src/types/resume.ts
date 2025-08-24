@@ -58,6 +58,16 @@ export type StyleConfig = {
   lineHeight: number;
 };
 
+export type FieldStyle = {
+  fontSize?: number;
+  fontFamily?: string;
+  color?: string;
+  fontWeight?: string;
+  fontStyle?: string;
+  textAlign?: string;
+  lineHeight?: number;
+};
+
 export type ResumeData = {
   personalInfo: PersonalInfo;
   experiences: WorkExperience[];
@@ -65,4 +75,5 @@ export type ResumeData = {
   skills: Skill[];
   customSections: CustomSection[];
   styleConfig?: StyleConfig;
+  fieldStyles?: Record<string, FieldStyle>;
 };

@@ -1,6 +1,8 @@
-import type { ResumeData, StyleConfig } from "@/types/resume";
+import type { ResumeData, StyleConfig, FieldStyle } from "@/types/resume";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import DraggableResizable from "./ui/draggable-resizable";
+import { ContextMenu, ContextMenuContent, ContextMenuItem } from "./ui/context-menu";
 
 interface ResumeCanvasProps {
   resumeData: ResumeData;
@@ -8,1413 +10,626 @@ interface ResumeCanvasProps {
   styleConfig?: StyleConfig;
   isInteractiveMode?: boolean;
   onResumeDataChange?: (data: ResumeData) => void;
+  selectedField?: string | null;
+  onFieldSelect?: (fieldId: string, fieldType: string) => void;
+  onStylePanelOpen?: () => void;
+  fieldStyles?: Record<string, FieldStyle>;
 }
+
+// EditableText Component for inline editing with field selection
+interface EditableTextProps {
+  value: string | undefined;
+  onSave: (value: string) => void;
+  placeholder?: string;
+  multiline?: boolean;
+  className?: string;
+  fieldId: string;
+  fieldType: string;
+  fieldStyle?: FieldStyle;
+  isSelected?: boolean;
+  onFieldSelect?: (fieldId: string, fieldType: string) => void;
+  onStylePanelOpen?: () => void;
+}
+
+const EditableText = ({ 
+  value, 
+  onSave, 
+  placeholder, 
+  multiline = false, 
+  className = "",
+  fieldId,
+  fieldType,
+  fieldStyle,
+  isSelected = false,
+  onFieldSelect,
+  onStylePanelOpen
+}: EditableTextProps) => {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState(value || "");
+
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!isEditing) {
+      // Select this field and potentially open style panel
+      onFieldSelect?.(fieldId, fieldType);
+      onStylePanelOpen?.();
+    }
+    setIsEditing(true);
+    setEditValue(value || "");
+  };
+
+  const handleSave = () => {
+    onSave(editValue);
+    setIsEditing(false);
+  };
+
+  const handleCancel = () => {
+    setEditValue(value || "");
+    setIsEditing(false);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !multiline) {
+      e.preventDefault();
+      handleSave();
+    } else if (e.key === "Enter" && e.ctrlKey && multiline) {
+      e.preventDefault();
+      handleSave();
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      handleCancel();
+    }
+  };
+
+  // Apply field-specific styles
+  const fieldStyles: React.CSSProperties = {
+    fontSize: fieldStyle?.fontSize,
+    fontFamily: fieldStyle?.fontFamily,
+    color: fieldStyle?.color,
+    fontWeight: fieldStyle?.fontWeight,
+    fontStyle: fieldStyle?.fontStyle,
+    textAlign: fieldStyle?.textAlign as any,
+    lineHeight: fieldStyle?.lineHeight,
+  };
+
+  if (isEditing) {
+    return multiline ? (
+      <textarea
+        value={editValue}
+        onChange={(e) => setEditValue(e.target.value)}
+        onBlur={handleSave}
+        onKeyDown={handleKeyDown}
+        className={`bg-blue-50 border border-blue-300 rounded px-2 py-1 w-full resize-none ${className}`}
+        style={fieldStyles}
+        autoFocus
+        rows={3}
+        placeholder={placeholder}
+      />
+    ) : (
+      <input
+        type="text"
+        value={editValue}
+        onChange={(e) => setEditValue(e.target.value)}
+        onBlur={handleSave}
+        onKeyDown={handleKeyDown}
+        className={`bg-blue-50 border border-blue-300 rounded px-2 py-1 w-full ${className}`}
+        style={fieldStyles}
+        autoFocus
+        placeholder={placeholder}
+      />
+    );
+  }
+
+  return (
+    <span
+      onClick={handleClick}
+      className={`cursor-pointer transition-all ${className} ${
+        isSelected 
+          ? 'bg-blue-100 outline-2 outline-blue-500 outline-dashed' 
+          : 'hover:bg-blue-50 hover:outline-2 hover:outline-blue-300 hover:outline-dashed'
+      } rounded px-1 py-0.5`}
+      style={fieldStyles}
+      title="Click to edit or style"
+    >
+      {value || placeholder || "Click to edit"}
+    </span>
+  );
+};
 
 export function ResumeCanvas({ 
   resumeData, 
   template, 
   styleConfig, 
   isInteractiveMode = false, 
-  onResumeDataChange 
+  onResumeDataChange,
+  selectedField,
+  onFieldSelect,
+  onStylePanelOpen,
+  fieldStyles = {}
 }: ResumeCanvasProps) {
   const isMobile = useIsMobile();
-  const [selectedSection, setSelectedSection] = useState<string | null>(null);
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
 
-  // Interactive mode handlers
-  const handleSectionClick = (sectionId: string, event: React.MouseEvent) => {
-    if (!isInteractiveMode) return;
-    event.stopPropagation();
-    setSelectedSection(selectedSection === sectionId ? null : sectionId);
-  };
+  // Canvas elements state (text, shape, textarea, etc.)
+  const [canvasElements, setCanvasElements] = useState<any[]>([]);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; visible: boolean }>({ x: 0, y: 0, visible: false });
 
-  const handleDragStart = (event: React.MouseEvent, sectionId: string) => {
-    if (!isInteractiveMode) return;
-    event.preventDefault();
-    setSelectedSection(sectionId);
-    
-    const rect = (event.target as HTMLElement).getBoundingClientRect();
-    setDragOffset({
-      x: event.clientX - rect.left,
-      y: event.clientY - rect.top
-    });
-  };
-  
-  const getTemplateConfig = (templateId: string) => {
-    const configs = {
-      "modern-professional": {
-        primaryColor: styleConfig?.primaryColor || "rgb(59, 130, 246)",
-        secondaryColor: styleConfig?.secondaryColor || "rgb(107, 114, 128)",
-        accentColor: styleConfig?.primaryColor || "rgb(59, 130, 246)",
-        layout: "modern"
-      },
-      "creative-edge": {
-        primaryColor: styleConfig?.primaryColor || "rgb(16, 185, 129)",
-        secondaryColor: styleConfig?.secondaryColor || "rgb(107, 114, 128)",
-        accentColor: styleConfig?.primaryColor || "rgb(16, 185, 129)",
-        layout: "creative"
-      },
-      "executive-classic": {
-        primaryColor: styleConfig?.primaryColor || "rgb(55, 65, 81)",
-        secondaryColor: styleConfig?.secondaryColor || "rgb(107, 114, 128)",
-        accentColor: styleConfig?.primaryColor || "rgb(55, 65, 81)",
-        layout: "executive"
-      },
-      "minimalist": {
-        primaryColor: styleConfig?.primaryColor || "rgb(139, 92, 246)",
-        secondaryColor: styleConfig?.secondaryColor || "rgb(107, 114, 128)",
-        accentColor: styleConfig?.primaryColor || "rgb(139, 92, 246)",
-        layout: "minimal"
-      },
-      "tech-developer": {
-        primaryColor: styleConfig?.primaryColor || "rgb(99, 102, 241)",
-        secondaryColor: styleConfig?.secondaryColor || "rgb(229, 231, 235)",
-        accentColor: styleConfig?.primaryColor || "rgb(99, 102, 241)",
-        layout: "tech"
-      },
-      "academic-scholar": {
-        primaryColor: styleConfig?.primaryColor || "rgb(245, 158, 11)",
-        secondaryColor: styleConfig?.secondaryColor || "rgb(107, 114, 128)",
-        accentColor: styleConfig?.primaryColor || "rgb(245, 158, 11)",
-        layout: "academic"
-      },
+  // Reset canvas elements and context menu when leaving interactive mode
+  useEffect(() => {
+    if (!isInteractiveMode) {
+      setCanvasElements([]);
+      setContextMenu({ x: 0, y: 0, visible: false });
+    }
+  }, [isInteractiveMode]);
+
+  // Add new element to canvas
+  const addElement = (type: string, position: { x: number; y: number }) => {
+    const newElement = {
+      id: Date.now().toString(),
+      type,
+      x: position.x,
+      y: position.y,
+      width: 120,
+      height: 40,
+      content: type === "text" ? "New Text" : type === "textarea" ? "New Textarea" : "",
+      color: "#222",
+      background: type === "shape" ? "#e0e0e0" : "transparent",
+      shape: type === "shape" ? "rect" : undefined,
     };
-    
-    return configs[templateId as keyof typeof configs] || configs["modern-professional"];
+    setCanvasElements([...canvasElements, newElement]);
+    setContextMenu({ ...contextMenu, visible: false });
   };
 
-  const templateConfig = getTemplateConfig(template);
+  // Handle right-click on canvas
+  const handleCanvasContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    // Get canvas bounding rect to keep menu within bounds
+    const canvasRect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    let x = e.clientX - canvasRect.left;
+    let y = e.clientY - canvasRect.top;
+    // Clamp menu position to canvas bounds (assume menu is 120x100px)
+    x = Math.max(0, Math.min(x, canvasRect.width - 120));
+    y = Math.max(0, Math.min(y, canvasRect.height - 100));
+    setContextMenu({ x, y, visible: true });
+  };
 
-  // Wrapper component for all templates to ensure consistent styling
+  // Move element handler
+  const handleElementMove = (id: string, x: number, y: number) => {
+    setCanvasElements((elements: any[]) => elements.map((el: any) => el.id === id ? { ...el, x, y } : el));
+  };
+
+  // Resize element handler
+  const handleElementResize = (id: string, width: number, height: number) => {
+    setCanvasElements((elements: any[]) => elements.map((el: any) => el.id === id ? { ...el, width, height } : el));
+  };
+
+  // Edit element content
+  const handleElementEdit = (id: string, content: string) => {
+    setCanvasElements((elements: any[]) => elements.map((el: any) => el.id === id ? { ...el, content } : el));
+  };
+
+  // Template wrapper component for consistent responsive behavior
   const TemplateWrapper = ({ children }: { children: React.ReactNode }) => (
     <div 
-      className={`bg-white rounded-lg shadow-lg overflow-hidden resume-canvas relative ${
-        isInteractiveMode ? 'border-2 border-dashed border-blue-300 bg-blue-50' : ''
-      }`}
+      className={`bg-white ${isMobile ? 'rounded-none shadow-none w-full' : 'rounded-lg shadow-lg'} resume-canvas overflow-hidden`}
       style={{ 
-        width: "100%", 
-        maxWidth: isMobile ? "100%" : "8.5in",
-        minHeight: isMobile ? "auto" : "11in",
-        aspectRatio: isMobile ? "auto" : "8.5/11",
-        ...dynamicStyles,
-        borderRadius: styleConfig?.borderRadius ? `${styleConfig.borderRadius}px` : '8px'
+        width: isMobile ? "100%" : "8.5in", 
+        minHeight: isMobile ? "auto" : "11in"
       }}
-      onClick={() => setSelectedSection(null)}
     >
-      {isInteractiveMode && (
-        <div className="absolute top-2 left-2 bg-blue-500 text-white text-xs px-2 py-1 rounded z-10">
-          Move Mode: Click sections to select and drag
-        </div>
-      )}
       {children}
     </div>
   );
 
-  // Enhanced DraggableSection with better visual feedback
-  const DraggableSection = ({ 
-    id, 
-    children, 
-    className = "" 
-  }: { 
-    id: string; 
-    children: React.ReactNode; 
-    className?: string;
-  }) => {
-    const isSelected = selectedSection === id;
-    
-    if (!isInteractiveMode) {
-      return <div className={className}>{children}</div>;
-    }
-    
-    return (
-      <div
-        className={`${className} cursor-move transition-all duration-200 relative ${
-          isSelected 
-            ? 'ring-2 ring-blue-500 bg-blue-50 shadow-lg transform scale-105 z-20' 
-            : 'hover:shadow-md hover:ring-1 hover:ring-blue-300 hover:bg-blue-25'
-        }`}
-        onClick={(e) => handleSectionClick(id, e)}
-        style={{
-          userSelect: 'none'
-        }}
-        title={isInteractiveMode ? `Click to select ${id.replace('-', ' ')}` : undefined}
-      >
-        {children}
-        {isSelected && (
-          <>
-            <div className="absolute inset-0 border-2 border-blue-500 border-dashed pointer-events-none rounded" />
-            <div className="absolute -top-6 left-0 bg-blue-500 text-white text-xs px-2 py-1 rounded z-30">
-              {id.replace('-', ' ')} (selected)
-            </div>
-          </>
-        )}
-      </div>
-    );
-  };
-
-  // Generate dynamic styles based on styleConfig
-  const getDynamicStyles = () => {
-    if (!styleConfig) return {};
-    
-    const spacingMap = {
-      tight: '0.5rem',
-      normal: '1rem',
-      relaxed: '1.5rem'
-    };
-
-    return {
-      fontFamily: styleConfig.fontFamily,
-      fontSize: `${styleConfig.fontSize}px`,
-      lineHeight: styleConfig.lineHeight,
-      color: styleConfig.textColor,
-      backgroundColor: styleConfig.backgroundColor,
-      '--primary-color': styleConfig.primaryColor,
-      '--secondary-color': styleConfig.secondaryColor,
-      '--text-color': styleConfig.textColor,
-      '--bg-color': styleConfig.backgroundColor,
-      '--border-radius': `${styleConfig.borderRadius}px`,
-      '--spacing': spacingMap[styleConfig.spacing],
-    } as React.CSSProperties;
-  };
-
-  const dynamicStyles = getDynamicStyles();
-
-  // Modern Professional Template - Two Column Layout with Left Sidebar
-  const ModernProfessionalTemplate = () => (
-    <TemplateWrapper>
-      <div className="flex">
-        {/* Left Sidebar */}
-        <div 
-          className="w-1/3 p-6 text-white"
-          style={{ backgroundColor: templateConfig.primaryColor }}
-        >
-          {/* Profile Photo Placeholder */}
-          <DraggableSection id="profile-photo" className="relative">
-            <div className="w-32 h-32 bg-white bg-opacity-20 rounded-full mx-auto mb-6 flex items-center justify-center">
-              <span className="text-4xl">👤</span>
-            </div>
-          </DraggableSection>
-          
-          {/* Contact Info */}
-          <DraggableSection id="contact-info" className="relative mb-6">
-            <div>
-              <h3 className="text-lg font-bold mb-4 uppercase tracking-wide">Contact</h3>
-              <div className="space-y-3 text-sm">
-                {resumeData.personalInfo.email && (
-                  <div className="flex items-center">
-                    <span className="mr-3">📧</span>
-                    <span className="break-all">{resumeData.personalInfo.email}</span>
-                  </div>
-                )}
-                {resumeData.personalInfo.phone && (
-                  <div className="flex items-center">
-                    <span className="mr-3">📱</span>
-                    <span>{resumeData.personalInfo.phone}</span>
-                  </div>
-                )}
-                {resumeData.personalInfo.location && (
-                  <div className="flex items-center">
-                    <span className="mr-3">📍</span>
-                    <span>{resumeData.personalInfo.location}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          </DraggableSection>
-
-          {/* Skills */}
-          {resumeData.skills.length > 0 && (
-            <DraggableSection id="skills-section" className="relative mb-6">
-              <div>
-                <h3 className="text-lg font-bold mb-4 uppercase tracking-wide">Skills</h3>
-                <div className="space-y-4">
-                  {Object.entries(resumeData.skills.reduce((acc: { [key: string]: string[] }, skill) => {
-                    if (!acc[skill.category]) {
-                      acc[skill.category] = [];
-                    }
-                    acc[skill.category].push(skill.name);
-                    return acc;
-                  }, {})).map(([category, skills]) => (
-                    <div key={category}>
-                      <h4 className="font-semibold text-sm mb-2 opacity-90">{category}</h4>
-                      <div className="space-y-2">
-                        {skills.map((skill, index) => (
-                          <div key={index} className="text-xs">
-                            <div className="flex justify-between mb-1">
-                              <span>{skill}</span>
-                              <span>●●●●○</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </DraggableSection>
-          )}
-
-          {/* Education */}
-          {resumeData.education.length > 0 && (
-            <DraggableSection id="education-section" className="relative">
-              <div>
-                <h3 className="text-lg font-bold mb-4 uppercase tracking-wide">Education</h3>
-                <div className="space-y-3">
-                  {resumeData.education.map((education) => (
-                    <div key={education.id} className="text-sm">
-                      <div className="font-semibold">{education.degree}</div>
-                      <div className="opacity-90">{education.institution}</div>
-                      <div className="text-xs opacity-75">{education.graduationYear}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </DraggableSection>
-          )}
-        </div>
-
-        {/* Main Content */}
-        <div className="flex-1 p-8">
-          {/* Header */}
-          <DraggableSection id="header-section" className="relative mb-8">
-            <div>
-              <h1 
-                className="text-4xl font-bold mb-2"
-                style={{ 
-                  color: styleConfig?.textColor || '#1F2937',
-                  fontFamily: styleConfig?.fontFamily || 'Inter',
-                  fontWeight: styleConfig?.headerStyle === 'bold' ? 'bold' : 'normal',
-                  fontStyle: styleConfig?.headerStyle === 'italic' ? 'italic' : 'normal'
-                }}
-              >
-                {resumeData.personalInfo.name || "Your Name"}
-              </h1>
-              <p 
-                className="text-xl mb-4"
-                style={{ 
-                  color: styleConfig?.secondaryColor || '#6B7280',
-                  fontFamily: styleConfig?.fontFamily || 'Inter'
-                }}
-              >
-                {resumeData.personalInfo.title || "Your Professional Title"}
-              </p>
-            </div>
-          </DraggableSection>
-            
-          {/* Professional Summary */}
-          {resumeData.personalInfo.summary && (
-            <DraggableSection id="summary-section" className="relative mt-6 mb-8">
-              <div>
-                <h2 
-                  className="text-lg font-semibold mb-3 flex items-center"
-                  style={{ 
-                    color: styleConfig?.textColor || '#1F2937',
-                    fontFamily: styleConfig?.fontFamily || 'Inter'
-                  }}
-                >
-                  <span 
-                    className="w-4 h-4 mr-3"
-                    style={{ 
-                      backgroundColor: templateConfig.primaryColor,
-                      borderRadius: `${styleConfig?.borderRadius || 4}px`
-                    }}
-                  ></span>
-                  About Me
-                </h2>
-                <p 
-                  className="leading-relaxed"
-                  style={{ 
-                    color: styleConfig?.textColor || '#374151',
-                    fontFamily: styleConfig?.fontFamily || 'Inter',
-                    lineHeight: styleConfig?.lineHeight || 1.6
-                  }}
-                >
-                  {resumeData.personalInfo.summary}
-                </p>
-              </div>
-            </DraggableSection>
-          )}
-
-          {/* Work Experience */}
-          {resumeData.experiences.length > 0 && (
-            <DraggableSection id="experience-section" className="relative mb-8">
-              <div>
-                <h2 className="text-lg font-semibold text-gray-900 mb-6 flex items-center">
-                  <span 
-                    className="w-4 h-4 rounded mr-3"
-                    style={{ backgroundColor: templateConfig.primaryColor }}
-                  ></span>
-                  Professional Experience
-                </h2>
-                <div className="space-y-6">
-                {resumeData.experiences.map((experience, index) => (
-                  <div key={experience.id} className="relative">
-                    {index !== resumeData.experiences.length - 1 && (
-                      <div 
-                        className="absolute left-0 top-8 w-px h-full bg-gray-200"
-                      ></div>
-                    )}
-                    <div className="flex">
-                      <div 
-                        className="w-3 h-3 rounded-full mt-2 mr-4 z-10"
-                        style={{ backgroundColor: templateConfig.primaryColor }}
-                      ></div>
-                      <div className="flex-1">
-                        <div className="flex justify-between items-start mb-2">
-                          <div>
-                            <h3 
-                              className="font-bold text-lg mb-1"
-                              style={{ 
-                                color: styleConfig?.textColor || '#1F2937',
-                                fontFamily: styleConfig?.fontFamily || 'Inter'
-                              }}
-                            >
-                              {experience.title}
-                            </h3>
-                            <p 
-                              className="font-semibold"
-                              style={{ color: templateConfig.primaryColor }}
-                            >
-                              {experience.company}
-                            </p>
-                          </div>
-                          <span className="bg-gray-100 px-3 py-1 rounded-full text-sm text-gray-600">
-                            {experience.startYear} - {experience.endYear}
-                          </span>
-                        </div>
-                        {experience.description && (
-                          <div 
-                            className="text-sm leading-relaxed whitespace-pre-line"
-                            style={{ 
-                              color: styleConfig?.textColor || '#374151',
-                              fontFamily: styleConfig?.fontFamily || 'Inter',
-                              lineHeight: styleConfig?.lineHeight || 1.6
-                            }}
-                          >
-                            {experience.description}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-                </div>
-              </div>
-            </DraggableSection>
-          )}
-
-          {/* Custom Sections */}
-          {(resumeData.customSections || []).filter(section => section.isVisible && section.items.length > 0).map((section) => (
-            <DraggableSection key={section.id} id={`custom-section-${section.id}`} className="relative mb-8">
-              <div>
-                <h2 
-                  className="text-lg font-semibold mb-3 flex items-center"
-                  style={{ 
-                    color: styleConfig?.textColor || '#1F2937',
-                    fontFamily: styleConfig?.fontFamily || 'Inter'
-                  }}
-                >
-                  <span 
-                    className="w-4 h-4 mr-3"
-                    style={{ 
-                      backgroundColor: templateConfig.primaryColor,
-                    borderRadius: `${styleConfig?.borderRadius || 4}px`
-                  }}
-                ></span>
-                {section.name}
-              </h2>
-              <div className="relative">
-                {section.items.map((item, index) => (
-                  <div key={item.id} className="relative">
-                    {index !== section.items.length - 1 && (
-                      <div 
-                        className="absolute left-0 top-8 w-px h-full bg-gray-200"
-                      ></div>
-                    )}
-                    <div className="flex">
-                      <div 
-                        className="w-3 h-3 rounded-full mt-2 mr-4 z-10"
-                        style={{ backgroundColor: templateConfig.primaryColor }}
-                      ></div>
-                      <div className="flex-1">
-                        <div className="flex justify-between items-start mb-2">
-                          <div>
-                            <h3 
-                              className="font-bold text-lg mb-1"
-                              style={{ 
-                                color: styleConfig?.textColor || '#1F2937',
-                                fontFamily: styleConfig?.fontFamily || 'Inter'
-                              }}
-                            >
-                              {item.title}
-                            </h3>
-                            {item.subtitle && (
-                              <p 
-                                className="font-semibold"
-                                style={{ color: templateConfig.primaryColor }}
-                              >
-                                {item.subtitle}
-                              </p>
-                            )}
-                            {item.location && (
-                              <p className="text-sm text-gray-600">{item.location}</p>
-                            )}
-                          </div>
-                          {item.date && (
-                            <span className="bg-gray-100 px-3 py-1 rounded-full text-sm text-gray-600">
-                              {item.date}
-                            </span>
-                          )}
-                        </div>
-                        {item.description && (
-                          <div 
-                            className="text-sm leading-relaxed whitespace-pre-line"
-                            style={{ 
-                              color: styleConfig?.textColor || '#374151',
-                              fontFamily: styleConfig?.fontFamily || 'Inter',
-                              lineHeight: styleConfig?.lineHeight || 1.6
-                            }}
-                          >
-                            {item.description}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              </div>
-            </DraggableSection>
-          ))}
-        </div>
-      </div>
-    </TemplateWrapper>
-  );
-
-  // Creative Edge Template - Zigzag Layout with Modern Cards
-  const CreativeEdgeTemplate = () => (
-    <TemplateWrapper>
-      {/* Creative Header with Geometric Shapes */}
-      <div className="relative overflow-hidden">
-        <div 
-          className="h-48 relative"
-          style={{ background: `linear-gradient(135deg, ${templateConfig.primaryColor}, ${templateConfig.accentColor})` }}
-        >
-          {/* Geometric decorations */}
-          <div className="absolute top-4 right-4 w-16 h-16 bg-white bg-opacity-20 rounded-full"></div>
-          <div className="absolute bottom-8 right-12 w-8 h-8 bg-white bg-opacity-30 rotate-45"></div>
-          <div className="absolute top-12 right-24 w-4 h-4 bg-white bg-opacity-40 rounded-full"></div>
-          
-          <div className="absolute bottom-8 left-8 text-white">
-            <h1 className="text-4xl font-bold mb-2 tracking-wide">
-              {resumeData.personalInfo.name || "Your Name"}
-            </h1>
-            <p className="text-xl opacity-90">
-              {resumeData.personalInfo.title || "Your Creative Title"}
-            </p>
-          </div>
-        </div>
-        
-        {/* Contact Cards */}
-        <div className="flex gap-4 px-8 -mt-8 relative z-10">
-          {resumeData.personalInfo.email && (
-            <div className="bg-white rounded-lg shadow-md p-3 flex-1">
-              <div className="text-xs text-gray-500 mb-1">Email</div>
-              <div className="text-sm font-medium text-gray-900">{resumeData.personalInfo.email}</div>
-            </div>
-          )}
-          {resumeData.personalInfo.phone && (
-            <div className="bg-white rounded-lg shadow-md p-3 flex-1">
-              <div className="text-xs text-gray-500 mb-1">Phone</div>
-              <div className="text-sm font-medium text-gray-900">{resumeData.personalInfo.phone}</div>
-            </div>
-          )}
-          {resumeData.personalInfo.location && (
-            <div className="bg-white rounded-lg shadow-md p-3 flex-1">
-              <div className="text-xs text-gray-500 mb-1">Location</div>
-              <div className="text-sm font-medium text-gray-900">{resumeData.personalInfo.location}</div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="px-8 pt-12 pb-8">
-        {/* Summary with creative styling */}
-        {resumeData.personalInfo.summary && (
-          <div className="mb-8">
-            <div className="bg-white rounded-2xl shadow-md p-6 border-l-4" style={{ borderColor: templateConfig.primaryColor }}>
-              <h2 className="text-lg font-bold text-gray-900 mb-3 flex items-center">
-                <span className="w-2 h-2 bg-current rounded-full mr-3" style={{ color: templateConfig.primaryColor }}></span>
-                Creative Vision
-              </h2>
-              <p className="text-gray-700 leading-relaxed italic">
-                "{resumeData.personalInfo.summary}"
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* Zigzag Layout for Experience */}
-        {resumeData.experiences.length > 0 && (
-          <div className="mb-8">
-            <h2 className="text-xl font-bold text-gray-900 mb-6 text-center">
-              Creative Journey
-            </h2>
-            <div className="space-y-6">
-              {resumeData.experiences.map((experience, index) => (
-                <div 
-                  key={experience.id} 
-                  className={`flex ${index % 2 === 0 ? 'justify-start' : 'justify-end'}`}
-                >
-                  <div className="w-2/3">
-                    <div className="bg-white rounded-2xl shadow-md p-6 relative">
-                      <div 
-                        className={`absolute top-6 w-4 h-4 rotate-45 bg-white ${
-                          index % 2 === 0 ? '-right-2' : '-left-2'
-                        }`}
-                      ></div>
-                      <div className="flex justify-between items-start mb-3">
-                        <div>
-                          <h3 className="font-bold text-lg text-gray-900">{experience.title}</h3>
-                          <p className="font-semibold" style={{ color: templateConfig.primaryColor }}>
-                            {experience.company}
-                          </p>
-                        </div>
-                        <span 
-                          className="px-3 py-1 rounded-full text-xs font-medium text-white"
-                          style={{ backgroundColor: templateConfig.primaryColor }}
-                        >
-                          {experience.startYear} - {experience.endYear}
-                        </span>
-                      </div>
-                      {experience.description && (
-                        <div className="text-gray-700 text-sm leading-relaxed whitespace-pre-line">
-                          {experience.description}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Bottom Section - Skills and Education in Cards */}
-        <div className="grid grid-cols-2 gap-8">
-          {/* Skills as circular progress */}
-          {resumeData.skills.length > 0 && (
-            <div>
-              <h2 className="text-lg font-bold text-gray-900 mb-4 text-center">Creative Skills</h2>
-              <div className="space-y-4">
-                {Object.entries(resumeData.skills.reduce((acc: { [key: string]: string[] }, skill) => {
-                  if (!acc[skill.category]) {
-                    acc[skill.category] = [];
-                  }
-                  acc[skill.category].push(skill.name);
-                  return acc;
-                }, {})).map(([category, skills]) => (
-                  <div key={category} className="bg-white rounded-xl shadow-md p-4">
-                    <h3 className="font-semibold text-gray-900 mb-3">{category}</h3>
-                    <div className="flex flex-wrap gap-2">
-                      {skills.map((skill, index) => (
-                        <span 
-                          key={index}
-                          className="px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700 hover:text-white transition-colors"
-                          style={{ backgroundColor: `${templateConfig.primaryColor}20` }}
-                        >
-                          {skill}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Education */}
-          {resumeData.education.length > 0 && (
-            <div>
-              <h2 className="text-lg font-bold text-gray-900 mb-4 text-center">Education</h2>
-              <div className="space-y-4">
-                {resumeData.education.map((education) => (
-                  <div key={education.id} className="bg-white rounded-xl shadow-md p-6">
-                    <h3 className="font-bold text-gray-900 mb-1">{education.degree}</h3>
-                    <p className="font-semibold mb-2" style={{ color: templateConfig.primaryColor }}>
-                      {education.institution}
-                    </p>
-                    <span className="inline-block px-2 py-1 bg-gray-100 rounded text-xs text-gray-600">
-                      {education.graduationYear}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Custom Sections */}
-        {(resumeData.customSections || []).filter(section => section.isVisible && section.items.length > 0).map((section) => (
-          <div key={section.id} className="mt-8">
-            <h2 className="text-xl font-bold text-gray-900 mb-6 text-center">
-              {section.name}
-            </h2>
-            <div className="space-y-6">
-              {section.items.map((item, index) => (
-                <div 
-                  key={item.id} 
-                  className={`flex ${index % 2 === 0 ? 'justify-start' : 'justify-end'}`}
-                >
-                  <div className="w-2/3">
-                    <div className="bg-white rounded-2xl shadow-md p-6 relative">
-                      <div 
-                        className={`absolute top-6 w-4 h-4 rotate-45 bg-white ${
-                          index % 2 === 0 ? '-right-2' : '-left-2'
-                        }`}
-                      ></div>
-                      <div className="flex justify-between items-start mb-3">
-                        <div>
-                          <h3 className="font-bold text-lg text-gray-900">{item.title}</h3>
-                          {item.subtitle && (
-                            <p className="font-semibold" style={{ color: templateConfig.primaryColor }}>
-                              {item.subtitle}
-                            </p>
-                          )}
-                          {item.location && (
-                            <p className="text-sm text-gray-600">{item.location}</p>
-                          )}
-                        </div>
-                        {item.date && (
-                          <span 
-                            className="px-3 py-1 rounded-full text-xs font-medium text-white"
-                            style={{ backgroundColor: templateConfig.primaryColor }}
-                          >
-                            {item.date}
-                          </span>
-                        )}
-                      </div>
-                      {item.description && (
-                        <div className="text-gray-700 text-sm leading-relaxed whitespace-pre-line">
-                          {item.description}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-    </TemplateWrapper>
-  );
-
-  const renderTemplate = () => {
-    switch (templateConfig.layout) {
-      case "creative":
-        return <CreativeEdgeTemplate />;
-      case "executive":
-        return <ExecutiveClassicTemplate />;
-      case "minimal":
-        return <MinimalistTemplate />;
-      case "tech":
-        return <TechDeveloperTemplate />;
-      case "academic":
-        return <AcademicScholarTemplate />;
-      default:
-        return <ModernProfessionalTemplate />;
-    }
-  };
-
-  // Add placeholder templates for now
+  // Executive Classic Template with responsive design and inline editing
   const ExecutiveClassicTemplate = () => (
-    <div 
-      className="bg-white rounded-lg shadow-lg p-8 resume-canvas"
-      style={{ width: "8.5in", minHeight: "11in" }}
-    >
-      {/* Executive Header with Letterhead Style */}
-      <div className="border-b-2 border-gray-900 pb-6 mb-8">
-        <div className="text-center">
-          <h1 className="text-5xl font-serif font-bold text-gray-900 mb-3 tracking-wider">
-            {resumeData.personalInfo.name?.toUpperCase() || "YOUR NAME"}
-          </h1>
-          <div className="w-24 h-1 bg-gray-900 mx-auto mb-4"></div>
-          <p className="text-lg text-gray-700 mb-4 font-serif italic">
-            {resumeData.personalInfo.title || "Executive Professional"}
-          </p>
-          
-          {/* Contact info in newspaper style */}
-          <div className="flex justify-center items-center gap-8 text-sm text-gray-600 font-serif">
-            {resumeData.personalInfo.email && (
-              <span className="flex items-center">
-                <span className="w-2 h-2 bg-gray-900 rounded-full mr-2"></span>
-                {resumeData.personalInfo.email}
-              </span>
-            )}
-            {resumeData.personalInfo.phone && (
-              <span className="flex items-center">
-                <span className="w-2 h-2 bg-gray-900 rounded-full mr-2"></span>
-                {resumeData.personalInfo.phone}
-              </span>
-            )}
-            {resumeData.personalInfo.location && (
-              <span className="flex items-center">
-                <span className="w-2 h-2 bg-gray-900 rounded-full mr-2"></span>
-                {resumeData.personalInfo.location}
-              </span>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Executive Summary as Feature Article */}
-      {resumeData.personalInfo.summary && (
-        <div className="mb-8 p-6 bg-gray-50 border-l-8 border-gray-900">
-          <h2 className="text-xl font-serif font-bold text-gray-900 mb-4 text-center">
-            EXECUTIVE PROFILE
-          </h2>
-          <p className="text-gray-700 leading-relaxed text-justify font-serif text-lg first-letter:text-4xl first-letter:font-bold first-letter:mr-2 first-letter:float-left first-letter:leading-none">
-            {resumeData.personalInfo.summary}
-          </p>
-        </div>
-      )}
-
-      {/* Three Column Layout */}
-      <div className="grid grid-cols-12 gap-8">
-        {/* Left Column - Experience (Main Content) */}
-        <div className="col-span-8">
-          {resumeData.experiences.length > 0 && (
-            <div className="mb-8">
-              <h2 className="text-xl font-serif font-bold text-gray-900 mb-6 border-b-2 border-gray-200 pb-2">
-                PROFESSIONAL EXPERIENCE
-              </h2>
-              <div className="space-y-6">
-                {resumeData.experiences.map((experience, index) => (
-                  <div key={experience.id} className="border-l-2 border-gray-300 pl-6 relative">
-                    <div className="absolute w-4 h-4 bg-gray-900 rounded-full -left-2 top-2"></div>
-                    <div className="mb-4">
-                      <h3 className="text-lg font-serif font-bold text-gray-900 mb-1">
-                        {experience.title}
-                      </h3>
-                      <p className="text-lg font-serif font-medium text-gray-700 italic mb-1">
-                        {experience.company}
-                      </p>
-                    </div>
-                    {experience.description && (
-                      <div className="text-gray-700 leading-relaxed whitespace-pre-line font-serif columns-2 gap-6 text-sm text-justify">
-                        {experience.description}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Right Sidebar */}
-        <div className="col-span-4 space-y-8">
-          {/* Education */}
-          {resumeData.education.length > 0 && (
-            <div className="bg-gray-900 text-white p-6 rounded">
-              <h2 className="text-lg font-serif font-bold mb-4 text-center border-b border-white pb-2">
-                ACADEMIC CREDENTIALS
-              </h2>
-              <div className="space-y-4">
-                {resumeData.education.map((education) => (
-                  <div key={education.id} className="text-center">
-                    <h3 className="font-serif font-bold text-sm mb-1">{education.degree}</h3>
-                    <p className="font-serif text-sm opacity-90 mb-1">{education.institution}</p>
-                    <span className="text-xs opacity-75 bg-white bg-opacity-20 px-2 py-1 rounded">
-                      {education.graduationYear}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Skills */}
-          {resumeData.skills.length > 0 && (
-            <div className="border-2 border-gray-900 p-6">
-              <h2 className="text-lg font-serif font-bold text-gray-900 mb-4 text-center">
-                CORE COMPETENCIES
-              </h2>
-              <div className="space-y-4">
-                {Object.entries(resumeData.skills.reduce((acc: { [key: string]: string[] }, skill) => {
-                  if (!acc[skill.category]) {
-                    acc[skill.category] = [];
-                  }
-                  acc[skill.category].push(skill.name);
-                  return acc;
-                }, {})).map(([category, skills]) => (
-                  <div key={category}>
-                    <h4 className="font-serif font-bold text-gray-900 mb-2 text-sm border-b border-gray-300 pb-1">
-                      {category.toUpperCase()}
-                    </h4>
-                    <div className="space-y-1">
-                      {skills.map((skill, index) => (
-                        <div key={index} className="text-xs text-gray-700 flex items-center">
-                          <span className="w-1 h-1 bg-gray-900 rounded-full mr-2"></span>
-                          {skill}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Custom Sections */}
-      {(resumeData.customSections || []).filter(section => section.isVisible && section.items.length > 0).map((section) => (
-        <div key={section.id} className="mt-8">
-          <h2 className="text-xl font-serif font-bold text-gray-900 mb-6 border-b-2 border-gray-200 pb-2">
-            {section.name.toUpperCase()}
-          </h2>
-          <div className="space-y-6">
-            {section.items.map((item, index) => (
-              <div key={item.id} className="border-l-2 border-gray-300 pl-6 relative">
-                <div className="absolute w-4 h-4 bg-gray-900 rounded-full -left-2 top-2"></div>
-                <div className="mb-4">
-                  <h3 className="text-lg font-serif font-bold text-gray-900 mb-1">
-                    {item.title}
-                  </h3>
-                  {item.subtitle && (
-                    <p className="text-lg font-serif font-medium text-gray-700 italic mb-1">
-                      {item.subtitle}
-                    </p>
-                  )}
-                  {item.location && (
-                    <p className="text-sm text-gray-600">{item.location}</p>
-                  )}
-                  {item.date && (
-                    <span className="text-sm text-gray-600 bg-gray-100 px-2 py-1 rounded">
-                      {item.date}
-                    </span>
-                  )}
-                </div>
-                {item.description && (
-                  <div className="text-gray-700 leading-relaxed whitespace-pre-line font-serif text-sm text-justify">
-                    {item.description}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-
-  const MinimalistTemplate = () => (
-    <div 
-      className="bg-white rounded-lg shadow-lg resume-canvas overflow-hidden"
-      style={{ width: "8.5in", minHeight: "11in" }}
-    >
-      {/* Ultra Clean Header */}
-      <div className="px-12 pt-16 pb-8">
-        <div className="border-b border-gray-200 pb-8 mb-12">
-          <h1 className="text-6xl font-thin text-gray-900 mb-4 tracking-tight">
-            {resumeData.personalInfo.name?.toLowerCase() || "your name"}
-          </h1>
-          <p className="text-2xl text-gray-400 mb-8 font-extralight tracking-wide">
-            {resumeData.personalInfo.title?.toLowerCase() || "your title"}
-          </p>
-          
-          {/* Minimal contact grid */}
-          <div className="grid grid-cols-3 gap-8 text-xs text-gray-500 uppercase tracking-widest">
-            <div>
-              <div className="text-gray-300 mb-1">Email</div>
-              <div>{resumeData.personalInfo.email || "email@domain.com"}</div>
-            </div>
-            <div>
-              <div className="text-gray-300 mb-1">Phone</div>
-              <div>{resumeData.personalInfo.phone || "+1 234 567 8900"}</div>
-            </div>
-            <div>
-              <div className="text-gray-300 mb-1">Location</div>
-              <div>{resumeData.personalInfo.location || "City, Country"}</div>
-            </div>
-          </div>
-        </div>
-
-        {/* Summary as a statement */}
-        {resumeData.personalInfo.summary && (
-          <div className="mb-16">
-            <p className="text-xl text-gray-600 leading-relaxed font-extralight max-w-4xl">
-              {resumeData.personalInfo.summary}
-            </p>
-          </div>
-        )}
-
-        {/* Grid Layout for Content */}
-        <div className="grid grid-cols-12 gap-16">
-          {/* Main Content - Experience */}
-          <div className="col-span-8">
-            {resumeData.experiences.length > 0 && (
-              <div className="mb-16">
-                <h2 className="text-xs uppercase tracking-widest text-gray-400 mb-8 font-light">
-                  Experience
-                </h2>
-                <div className="space-y-12">
-                  {resumeData.experiences.map((experience) => (
-                    <div key={experience.id}>
-                      <div className="flex justify-between items-start mb-4">
-                        <div>
-                          <h3 className="text-lg text-gray-900 font-light mb-2">{experience.title}</h3>
-                          <p className="text-gray-500 font-extralight">{experience.company}</p>
-                        </div>
-                        <div className="text-xs text-gray-400 uppercase tracking-wider">
-                          {experience.startYear} — {experience.endYear}
-                        </div>
-                      </div>
-                      {experience.description && (
-                        <div className="text-gray-600 leading-relaxed font-light text-sm whitespace-pre-line">
-                          {experience.description}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Custom Sections */}
-            {(resumeData.customSections || []).filter(section => section.isVisible && section.items.length > 0).map((section) => (
-              <div key={section.id} className="mb-16">
-                <h2 className="text-xs uppercase tracking-widest text-gray-400 mb-8 font-light">
-                  {section.name}
-                </h2>
-                <div className="space-y-12">
-                  {section.items.map((item) => (
-                    <div key={item.id}>
-                      <div className="flex justify-between items-start mb-4">
-                        <div>
-                          <h3 className="text-lg text-gray-900 font-light mb-2">{item.title}</h3>
-                          {item.subtitle && (
-                            <p className="text-gray-500 font-extralight">{item.subtitle}</p>
-                          )}
-                          {item.location && (
-                            <p className="text-gray-400 text-sm">{item.location}</p>
-                          )}
-                        </div>
-                        {item.date && (
-                          <div className="text-xs text-gray-400 uppercase tracking-wider">
-                            {item.date}
-                          </div>
-                        )}
-                      </div>
-                      {item.description && (
-                        <div className="text-gray-600 leading-relaxed font-light text-sm whitespace-pre-line">
-                          {item.description}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Sidebar */}
-          <div className="col-span-4">
-            {/* Skills */}
-            {resumeData.skills.length > 0 && (
-              <div className="mb-16">
-                <h2 className="text-xs uppercase tracking-widest text-gray-400 mb-8 font-light">
-                  Skills
-                </h2>
-                <div className="space-y-6">
-                  {Object.entries(resumeData.skills.reduce((acc: { [key: string]: string[] }, skill) => {
-                    if (!acc[skill.category]) {
-                      acc[skill.category] = [];
-                    }
-                    acc[skill.category].push(skill.name);
-                    return acc;
-                  }, {})).map(([category, skills]) => (
-                    <div key={category}>
-                      <h4 className="text-xs text-gray-600 uppercase tracking-wider mb-3 font-light">
-                        {category}
-                      </h4>
-                      <div className="space-y-2">
-                        {skills.map((skill, index) => (
-                          <div key={index} className="text-xs text-gray-500 font-light">
-                            {skill}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Education */}
-            {resumeData.education.length > 0 && (
-              <div>
-                <h2 className="text-xs uppercase tracking-widest text-gray-400 mb-8 font-light">
-                  Education
-                </h2>
-                <div className="space-y-6">
-                  {resumeData.education.map((education) => (
-                    <div key={education.id}>
-                      <div className="text-xs text-gray-400 uppercase tracking-wider mb-1">
-                        {education.graduationYear}
-                      </div>
-                      <h3 className="text-sm text-gray-700 font-light mb-1">{education.degree}</h3>
-                      <p className="text-xs text-gray-500 font-light">{education.institution}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
-  const TechDeveloperTemplate = () => (
-    <div 
-      className="bg-gray-900 text-green-400 rounded-lg shadow-lg p-8 resume-canvas font-mono"
-      style={{ width: "8.5in", minHeight: "11in" }}
-    >
-      {/* Terminal Header */}
-      <div className="mb-6">
-        <div className="flex items-center mb-4 bg-gray-800 p-3 rounded-t">
-          <div className="flex space-x-2">
-            <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-            <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
-            <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-          </div>
-          <div className="ml-4 text-gray-400 text-sm">developer@resume:~$</div>
-        </div>
-        
-        <div className="bg-gray-800 p-4 rounded-b">
-          <div className="text-blue-400 mb-2">
-            <span className="text-gray-500">$</span> whoami
-          </div>
-          <div className="ml-4">
-            <h1 className="text-2xl font-bold text-white mb-1">
-              {resumeData.personalInfo.name || "Developer Name"}
+    <TemplateWrapper>
+      <div className={`${isMobile ? 'p-4 text-sm' : 'p-8 text-base'}`}>
+        {/* Executive Header with Letterhead Style */}
+        <div className={`border-b-2 border-gray-900 ${isMobile ? 'pb-4 mb-6' : 'pb-6 mb-8'}`}>
+          <div className="text-center">
+            <h1 className={`${isMobile ? 'text-2xl' : 'text-5xl'} font-serif font-bold text-gray-900 ${isMobile ? 'mb-2' : 'mb-3'} tracking-wider`}>
+              <EditableText
+                value={resumeData.personalInfo.name?.toUpperCase()}
+                onSave={(value) => onResumeDataChange?.({ 
+                  ...resumeData, 
+                  personalInfo: { ...resumeData.personalInfo, name: value } 
+                })}
+                className="inline-block"
+                placeholder="YOUR NAME"
+                fieldId="personal-name"
+                fieldType="header"
+                isSelected={selectedField === "personal-name"}
+                onFieldSelect={onFieldSelect}
+                onStylePanelOpen={onStylePanelOpen}
+              />
             </h1>
-            <p className="text-indigo-400">
-              {resumeData.personalInfo.title || "Full Stack Developer"}
+            <div className={`${isMobile ? 'w-16 h-0.5' : 'w-24 h-1'} bg-gray-900 mx-auto ${isMobile ? 'mb-2' : 'mb-4'}`}></div>
+            <p className={`${isMobile ? 'text-base' : 'text-lg'} text-gray-700 ${isMobile ? 'mb-2' : 'mb-4'} font-serif italic`}>
+              <EditableText
+                value={resumeData.personalInfo.title}
+                onSave={(value) => onResumeDataChange?.({ 
+                  ...resumeData, 
+                  personalInfo: { ...resumeData.personalInfo, title: value } 
+                })}
+                className="inline-block"
+                placeholder="Executive Professional"
+                fieldId="personal-title"
+                fieldType="subtitle"
+                fieldStyle={fieldStyles["personal-title"]}
+                isSelected={selectedField === "personal-title"}
+                onFieldSelect={onFieldSelect}
+                onStylePanelOpen={onStylePanelOpen}
+              />
             </p>
-          </div>
-          
-          <div className="mt-4 text-blue-400">
-            <span className="text-gray-500">$</span> contact --info
-          </div>
-          <div className="ml-4 text-sm space-y-1">
-            {resumeData.personalInfo.email && (
-              <div className="text-gray-300">
-                📧 {resumeData.personalInfo.email}
-              </div>
-            )}
-            {resumeData.personalInfo.phone && (
-              <div className="text-gray-300">
-                📱 {resumeData.personalInfo.phone}
-              </div>
-            )}
-            {resumeData.personalInfo.location && (
-              <div className="text-gray-300">
-                📍 {resumeData.personalInfo.location}
-              </div>
-            )}
+            
+            {/* Contact info in newspaper style */}
+            <div className={`flex ${isMobile ? 'flex-col gap-2' : 'justify-center items-center gap-8'} ${isMobile ? 'text-xs' : 'text-sm'} text-gray-600 font-serif`}>
+              {resumeData.personalInfo.email && (
+                <span className="flex items-center justify-center">
+                  <span className={`${isMobile ? 'w-1 h-1' : 'w-2 h-2'} bg-gray-900 rounded-full mr-2`}></span>
+                  <EditableText
+                    value={resumeData.personalInfo.email}
+                    onSave={(value) => onResumeDataChange?.({ 
+                      ...resumeData, 
+                      personalInfo: { ...resumeData.personalInfo, email: value } 
+                    })}
+                    placeholder="email@example.com"
+                    fieldId="personal-email"
+                    fieldType="contact"
+                    fieldStyle={fieldStyles["personal-email"]}
+                    isSelected={selectedField === "personal-email"}
+                    onFieldSelect={onFieldSelect}
+                    onStylePanelOpen={onStylePanelOpen}
+                  />
+                </span>
+              )}
+              {resumeData.personalInfo.phone && (
+                <span className="flex items-center justify-center">
+                  <span className={`${isMobile ? 'w-1 h-1' : 'w-2 h-2'} bg-gray-900 rounded-full mr-2`}></span>
+                  <EditableText
+                    value={resumeData.personalInfo.phone}
+                    onSave={(value) => onResumeDataChange?.({ 
+                      ...resumeData, 
+                      personalInfo: { ...resumeData.personalInfo, phone: value } 
+                    })}
+                    placeholder="(555) 123-4567"
+                    fieldId="personal-phone"
+                    fieldType="contact"
+                    isSelected={selectedField === "personal-phone"}
+                    onFieldSelect={onFieldSelect}
+                    onStylePanelOpen={onStylePanelOpen}
+                  />
+                </span>
+              )}
+              {resumeData.personalInfo.location && (
+                <span className="flex items-center justify-center">
+                  <span className={`${isMobile ? 'w-1 h-1' : 'w-2 h-2'} bg-gray-900 rounded-full mr-2`}></span>
+                  <EditableText
+                    value={resumeData.personalInfo.location}
+                    onSave={(value) => onResumeDataChange?.({ 
+                      ...resumeData, 
+                      personalInfo: { ...resumeData.personalInfo, location: value } 
+                    })}
+                    placeholder="City, State"
+                    fieldId="personal-location"
+                    fieldType="contact"
+                    isSelected={selectedField === "personal-location"}
+                    onFieldSelect={onFieldSelect}
+                    onStylePanelOpen={onStylePanelOpen}
+                  />
+                </span>
+              )}
+            </div>
           </div>
         </div>
-      </div>
 
-      <div className="space-y-6">
-        {/* About */}
+        {/* Executive Summary */}
         {resumeData.personalInfo.summary && (
-          <div className="mb-6">
-            <div className="text-blue-400 mb-2">
-              <span className="text-gray-500">$</span> cat README.md
-            </div>
-            <div className="ml-4 bg-gray-800 p-4 rounded border border-gray-700">
-              <div className="text-white font-bold mb-2"># About Me</div>
-              <p className="text-gray-300 leading-relaxed">
-                {resumeData.personalInfo.summary}
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* Work Experience as Git Log */}
-        {resumeData.experiences.length > 0 && (
-          <div className="mb-6">
-            <div className="text-blue-400 mb-2">
-              <span className="text-gray-500">$</span> git log --oneline --experience
-            </div>
-            <div className="ml-4 space-y-3">
-              {resumeData.experiences.map((experience, index) => (
-                <div key={experience.id} className="bg-gray-800 p-4 rounded border border-gray-700">
-                  <div className="flex items-center mb-2">
-                    <span className="text-yellow-400 font-mono text-xs mr-3">
-                      {`commit ${(index + 1).toString().padStart(3, '0')}`}
-                    </span>
-                    <span className="text-white font-bold">{experience.title}</span>
-                  </div>
-                  <div className="text-indigo-400 text-sm mb-2">
-                    Author: {experience.company} &lt;{experience.startYear}-{experience.endYear}&gt;
-                  </div>
-                  {experience.description && (
-                    <div className="text-gray-300 text-sm leading-relaxed ml-4 border-l-2 border-gray-600 pl-4 whitespace-pre-line">
-                      {experience.description}
-                    </div>
-                  )}
-                </div>
-              ))}
+          <div className={`${isMobile ? 'mb-6' : 'mb-8'}`}>
+            <h2 className={`${isMobile ? 'text-lg' : 'text-xl'} font-serif font-bold text-gray-900 ${isMobile ? 'mb-3' : 'mb-4'} border-b border-gray-300 pb-2`}>
+              EXECUTIVE SUMMARY
+            </h2>
+            <div className={`${isMobile ? 'text-sm' : 'text-base'} text-gray-700 font-serif leading-relaxed`}>
+              <EditableText
+                value={resumeData.personalInfo.summary}
+                onSave={(value) => onResumeDataChange?.({ 
+                  ...resumeData, 
+                  personalInfo: { ...resumeData.personalInfo, summary: value } 
+                })}
+                multiline
+                placeholder="Seasoned executive with expertise in strategic leadership, operational excellence, and driving organizational growth."
+                fieldId="personal-summary"
+                fieldType="paragraph"
+                fieldStyle={fieldStyles["personal-summary"]}
+                isSelected={selectedField === "personal-summary"}
+                onFieldSelect={onFieldSelect}
+                onStylePanelOpen={onStylePanelOpen}
+              />
             </div>
           </div>
         )}
 
-        {/* Skills as Package.json */}
-        {resumeData.skills.length > 0 && (
-          <div className="mb-6">
-            <div className="text-blue-400 mb-2">
-              <span className="text-gray-500">$</span> cat package.json | jq '.dependencies'
-            </div>
-            <div className="ml-4 bg-gray-800 p-4 rounded border border-gray-700">
-              <div className="text-white">{`{`}</div>
-              {Object.entries(resumeData.skills.reduce((acc: { [key: string]: string[] }, skill) => {
-                if (!acc[skill.category]) {
-                  acc[skill.category] = [];
-                }
-                acc[skill.category].push(skill.name);
-                return acc;
-              }, {})).map(([category, skills], categoryIndex, categories) => (
-                <div key={category} className="ml-4">
-                  <div className="text-yellow-400 mb-2">"{category}": {`{`}</div>
-                  {skills.map((skill, skillIndex) => (
-                    <div key={skillIndex} className="ml-4 text-gray-300">
-                      "{skill}": "^latest"{skillIndex < skills.length - 1 ? ',' : ''}
-                    </div>
-                  ))}
-                  <div className="text-yellow-400">{`}`}{categoryIndex < categories.length - 1 ? ',' : ''}</div>
+        {/* Experience */}
+        {resumeData.experiences && resumeData.experiences.length > 0 && (
+          <div className={`${isMobile ? 'mb-6' : 'mb-8'}`}>
+            <h2 className={`${isMobile ? 'text-lg' : 'text-xl'} font-serif font-bold text-gray-900 ${isMobile ? 'mb-3' : 'mb-4'} border-b border-gray-300 pb-2`}>
+              PROFESSIONAL EXPERIENCE
+            </h2>
+            {resumeData.experiences.map((exp, index) => (
+              <div key={exp.id} className={`${isMobile ? 'mb-4' : 'mb-6'}`}>
+                <div className={`flex ${isMobile ? 'flex-col' : 'justify-between items-start'} ${isMobile ? 'mb-1' : 'mb-2'}`}>
+                  <h3 className={`${isMobile ? 'text-base' : 'text-lg'} font-serif font-semibold text-gray-900`}>
+                    <EditableText
+                      value={exp.title}
+                      onSave={(value) => {
+                        const updatedExperiences = [...resumeData.experiences];
+                        updatedExperiences[index] = { ...exp, title: value };
+                        onResumeDataChange?.({ 
+                          ...resumeData, 
+                          experiences: updatedExperiences 
+                        });
+                      }}
+                      placeholder="Position Title"
+                      fieldId={`experience-title-${index}`}
+                      fieldType="heading"
+                      fieldStyle={fieldStyles[`experience-title-${index}`]}
+                      isSelected={selectedField === `experience-title-${index}`}
+                      onFieldSelect={onFieldSelect}
+                      onStylePanelOpen={onStylePanelOpen}
+                    />
+                  </h3>
+                  <span className={`${isMobile ? 'text-sm' : 'text-base'} text-gray-600 font-serif italic ${isMobile ? 'mb-1' : ''}`}>
+                    <EditableText
+                      value={`${exp.startYear} - ${exp.endYear}`}
+                      onSave={(value) => {
+                        const [start, end] = value.split(' - ');
+                        const updatedExperiences = [...resumeData.experiences];
+                        updatedExperiences[index] = { ...exp, startYear: start || '', endYear: end || '' };
+                        onResumeDataChange?.({ 
+                          ...resumeData, 
+                          experiences: updatedExperiences 
+                        });
+                      }}
+                      placeholder="Jan 2020 - Present"
+                      fieldId={`experience-dates-${index}`}
+                      fieldType="text"
+                      isSelected={selectedField === `experience-dates-${index}`}
+                      onFieldSelect={onFieldSelect}
+                      onStylePanelOpen={onStylePanelOpen}
+                    />
+                  </span>
                 </div>
-              ))}
-              <div className="text-white">{`}`}</div>
-            </div>
+                <h4 className={`${isMobile ? 'text-sm' : 'text-base'} font-serif text-gray-800 ${isMobile ? 'mb-2' : 'mb-3'} italic`}>
+                  <EditableText
+                    value={exp.company}
+                    onSave={(value) => {
+                      const updatedExperiences = [...resumeData.experiences];
+                      updatedExperiences[index] = { ...exp, company: value };
+                      onResumeDataChange?.({ 
+                        ...resumeData, 
+                        experiences: updatedExperiences 
+                      });
+                    }}
+                    placeholder="Company Name"
+                    fieldId={`experience-company-${index}`}
+                    fieldType="heading"
+                    isSelected={selectedField === `experience-company-${index}`}
+                    onFieldSelect={onFieldSelect}
+                    onStylePanelOpen={onStylePanelOpen}
+                  />
+                </h4>
+                <div className={`${isMobile ? 'text-sm' : 'text-base'} text-gray-700 font-serif leading-relaxed`}>
+                  <EditableText
+                    value={exp.description}
+                    onSave={(value) => {
+                      const updatedExperiences = [...resumeData.experiences];
+                      updatedExperiences[index] = { ...exp, description: value };
+                      onResumeDataChange?.({ 
+                        ...resumeData, 
+                        experiences: updatedExperiences 
+                      });
+                    }}
+                    multiline
+                    placeholder="• Led strategic initiatives resulting in 25% revenue growth
+• Managed cross-functional teams of 50+ professionals
+• Implemented operational improvements reducing costs by 15%"
+                    fieldId={`experience-description-${index}`}
+                    fieldType="paragraph"
+                    isSelected={selectedField === `experience-description-${index}`}
+                    onFieldSelect={onFieldSelect}
+                    onStylePanelOpen={onStylePanelOpen}
+                  />
+                </div>
+              </div>
+            ))}
           </div>
         )}
 
         {/* Education */}
-        {resumeData.education.length > 0 && (
-          <div className="mb-6">
-            <div className="text-blue-400 mb-2">
-              <span className="text-gray-500">$</span> ls -la /education/
-            </div>
-            <div className="ml-4 space-y-2">
-              {resumeData.education.map((education) => (
-                <div key={education.id} className="text-gray-300 font-mono text-sm">
-                  <span className="text-green-400">drwxr-xr-x</span> 2 dev dev 4096 {education.graduationYear} {education.degree} @ {education.institution}
+        {resumeData.education && resumeData.education.length > 0 && (
+          <div className={`${isMobile ? 'mb-6' : 'mb-8'}`}>
+            <h2 className={`${isMobile ? 'text-lg' : 'text-xl'} font-serif font-bold text-gray-900 ${isMobile ? 'mb-3' : 'mb-4'} border-b border-gray-300 pb-2`}>
+              EDUCATION
+            </h2>
+            {resumeData.education.map((edu, index) => (
+              <div key={edu.id} className={`${isMobile ? 'mb-3' : 'mb-4'}`}>
+                <div className={`flex ${isMobile ? 'flex-col' : 'justify-between items-start'}`}>
+                  <h3 className={`${isMobile ? 'text-base' : 'text-lg'} font-serif font-semibold text-gray-900`}>
+                    <EditableText
+                      value={edu.degree}
+                      onSave={(value) => {
+                        const updatedEducation = [...resumeData.education];
+                        updatedEducation[index] = { ...edu, degree: value };
+                        onResumeDataChange?.({ 
+                          ...resumeData, 
+                          education: updatedEducation 
+                        });
+                      }}
+                      placeholder="Master of Business Administration"
+                      fieldId={`education-degree-${index}`}
+                      fieldType="heading"
+                      isSelected={selectedField === `education-degree-${index}`}
+                      onFieldSelect={onFieldSelect}
+                      onStylePanelOpen={onStylePanelOpen}
+                    />
+                  </h3>
+                  <span className={`${isMobile ? 'text-sm' : 'text-base'} text-gray-600 font-serif italic`}>
+                    <EditableText
+                      value={edu.graduationYear}
+                      onSave={(value) => {
+                        const updatedEducation = [...resumeData.education];
+                        updatedEducation[index] = { ...edu, graduationYear: value };
+                        onResumeDataChange?.({ 
+                          ...resumeData, 
+                          education: updatedEducation 
+                        });
+                      }}
+                      placeholder="2018"
+                      fieldId={`education-year-${index}`}
+                      fieldType="text"
+                      isSelected={selectedField === `education-year-${index}`}
+                      onFieldSelect={onFieldSelect}
+                      onStylePanelOpen={onStylePanelOpen}
+                    />
+                  </span>
+                </div>
+                <p className={`${isMobile ? 'text-sm' : 'text-base'} text-gray-800 font-serif italic`}>
+                  <EditableText
+                    value={edu.institution}
+                    onSave={(value) => {
+                      const updatedEducation = [...resumeData.education];
+                      updatedEducation[index] = { ...edu, institution: value };
+                      onResumeDataChange?.({ 
+                        ...resumeData, 
+                        education: updatedEducation 
+                      });
+                    }}
+                    placeholder="Harvard Business School"
+                    fieldId={`education-institution-${index}`}
+                    fieldType="heading"
+                    isSelected={selectedField === `education-institution-${index}`}
+                    onFieldSelect={onFieldSelect}
+                    onStylePanelOpen={onStylePanelOpen}
+                  />
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Skills */}
+        {resumeData.skills && resumeData.skills.length > 0 && (
+          <div className={`${isMobile ? 'mb-6' : 'mb-8'}`}>
+            <h2 className={`${isMobile ? 'text-lg' : 'text-xl'} font-serif font-bold text-gray-900 ${isMobile ? 'mb-3' : 'mb-4'} border-b border-gray-300 pb-2`}>
+              CORE COMPETENCIES
+            </h2>
+            <div className={`grid ${isMobile ? 'grid-cols-1 gap-2' : 'grid-cols-3 gap-4'} ${isMobile ? 'text-sm' : 'text-base'} text-gray-700 font-serif`}>
+              {resumeData.skills.map((skill, index) => (
+                <div key={skill.id} className="flex items-center">
+                  <span className={`${isMobile ? 'w-1 h-1' : 'w-2 h-2'} bg-gray-900 rounded-full mr-2`}></span>
+                  <EditableText
+                    value={skill.name}
+                    onSave={(value) => {
+                      const updatedSkills = [...resumeData.skills];
+                      updatedSkills[index] = { ...skill, name: value };
+                      onResumeDataChange?.({ 
+                        ...resumeData, 
+                        skills: updatedSkills 
+                      });
+                    }}
+                    placeholder="Strategic Planning"
+                    fieldId={`skill-${index}`}
+                    fieldType="text"
+                    fieldStyle={fieldStyles[`skill-${index}`]}
+                    isSelected={selectedField === `skill-${index}`}
+                    onFieldSelect={onFieldSelect}
+                    onStylePanelOpen={onStylePanelOpen}
+                  />
                 </div>
               ))}
             </div>
           </div>
         )}
-
-        {/* Custom Sections */}
-        {(resumeData.customSections || []).filter(section => section.isVisible && section.items.length > 0).map((section) => (
-          <div key={section.id} className="mb-6">
-            <div className="text-blue-400 mb-2">
-              <span className="text-gray-500">$</span> cat {section.name.toLowerCase().replace(' ', '_')}.md
-            </div>
-            <div className="ml-4 bg-gray-800 p-4 rounded border border-gray-700">
-              <div className="text-white font-bold mb-4"># {section.name}</div>
-              {section.items.map((item) => (
-                <div key={item.id} className="mb-4 last:mb-0">
-                  <div className="text-yellow-400 font-bold">## {item.title}</div>
-                  {item.subtitle && (
-                    <div className="text-indigo-400 text-sm">{item.subtitle}</div>
-                  )}
-                  {item.location && (
-                    <div className="text-gray-400 text-sm">📍 {item.location}</div>
-                  )}
-                  {item.date && (
-                    <div className="text-gray-400 text-sm">📅 {item.date}</div>
-                  )}
-                  {item.description && (
-                    <div className="text-gray-300 text-sm leading-relaxed mt-2 whitespace-pre-line">
-                      {item.description}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
-
-        {/* Terminal Footer */}
-        <div className="mt-6 pt-4 border-t border-gray-700">
-          <div className="text-green-400">
-            <span className="text-gray-500">$</span> 
-            <span className="animate-pulse ml-1">█</span>
-          </div>
-        </div>
       </div>
-    </div>
+    </TemplateWrapper>
   );
 
-  const AcademicScholarTemplate = () => (
-    <div 
-      className="bg-white rounded-lg shadow-lg p-8 resume-canvas"
-      style={{ width: "8.5in", minHeight: "11in" }}
-    >
-      {/* Academic Header */}
-      <div className="text-center mb-8 border-b-2 border-amber-500 pb-6">
-        <h1 className="text-3xl font-serif font-bold text-gray-900 mb-2">
-          {resumeData.personalInfo.name || "Your Name"}
-        </h1>
-        <p className="text-lg text-gray-700 mb-4 italic">
-          {resumeData.personalInfo.title || "Your Academic Position"}
-        </p>
-        <div className="flex justify-center gap-6 text-sm text-gray-600">
-          {resumeData.personalInfo.email && <span>✉ {resumeData.personalInfo.email}</span>}
-          {resumeData.personalInfo.phone && <span>☎ {resumeData.personalInfo.phone}</span>}
-          {resumeData.personalInfo.location && <span>⌂ {resumeData.personalInfo.location}</span>}
-        </div>
-      </div>
-
-      {/* Research Summary */}
-      {resumeData.personalInfo.summary && (
-        <div className="mb-8">
-          <h2 className="text-lg font-serif font-bold text-amber-700 mb-4 border-b border-amber-200 pb-2">
-            Research Summary
-          </h2>
-          <p className="text-gray-700 leading-relaxed text-justify">
-            {resumeData.personalInfo.summary}
-          </p>
-        </div>
-      )}
-
-      {/* Education First (Academic Priority) */}
-      {resumeData.education.length > 0 && (
-        <div className="mb-8">
-          <h2 className="text-lg font-serif font-bold text-amber-700 mb-4 border-b border-amber-200 pb-2">
-            Education
-          </h2>
-          <div className="space-y-4">
-            {resumeData.education.map((education) => (
-              <div key={education.id} className="bg-amber-50 p-4 rounded border-l-4 border-amber-500">
-                <h3 className="font-serif font-bold text-gray-900 text-lg">{education.degree}</h3>
-                <p className="text-amber-700 font-medium italic">{education.institution}</p>
-                <span className="text-sm text-gray-600">{education.graduationYear}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Academic/Professional Experience */}
-      {resumeData.experiences.length > 0 && (
-        <div className="mb-8">
-          <h2 className="text-lg font-serif font-bold text-amber-700 mb-4 border-b border-amber-200 pb-2">
-            Academic & Professional Experience
-          </h2>
-          <div className="space-y-4">
-            {resumeData.experiences.map((experience) => (
-              <div key={experience.id} className="mb-4">
-                <div className="flex justify-between items-start mb-2">
-                  <div>
-                    <h3 className="font-serif font-bold text-gray-900 text-lg">{experience.title}</h3>
-                    <p className="text-amber-700 font-medium italic">{experience.company}</p>
-                  </div>
-                  <span className="text-sm text-gray-600 bg-amber-100 px-3 py-1 rounded">
-                    {experience.startYear} - {experience.endYear}
-                  </span>
-                </div>
-                {experience.description && (
-                  <div className="text-gray-700 text-sm leading-relaxed whitespace-pre-line">
-                    {experience.description}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Research Skills & Competencies */}
-      {resumeData.skills.length > 0 && (
-        <div className="mb-8">
-          <h2 className="text-lg font-serif font-bold text-amber-700 mb-4 border-b border-amber-200 pb-2">
-            Research Skills & Competencies
-          </h2>
-          <div className="grid grid-cols-2 gap-6">
-            {Object.entries(resumeData.skills.reduce((acc: { [key: string]: string[] }, skill) => {
-              if (!acc[skill.category]) {
-                acc[skill.category] = [];
-              }
-              acc[skill.category].push(skill.name);
-              return acc;
-            }, {})).map(([category, skills]) => (
-              <div key={category} className="bg-amber-50 p-4 rounded">
-                <h4 className="font-serif font-bold text-amber-800 mb-2">{category}</h4>
-                <ul className="text-gray-700 text-sm space-y-1">
-                  {skills.map((skill, index) => (
-                    <li key={index} className="flex items-center">
-                      <span className="w-2 h-2 bg-amber-400 rounded-full mr-2"></span>
-                      {skill}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Custom Sections */}
-      {(resumeData.customSections || []).filter(section => section.isVisible && section.items.length > 0).map((section) => (
-        <div key={section.id} className="mb-8">
-          <h2 className="text-lg font-serif font-bold text-amber-700 mb-4 border-b border-amber-200 pb-2">
-            {section.name}
-          </h2>
-          <div className="space-y-4">
-            {section.items.map((item) => (
-              <div key={item.id} className="mb-4">
-                <div className="flex justify-between items-start mb-2">
-                  <div>
-                    <h3 className="font-serif font-bold text-gray-900 text-lg">{item.title}</h3>
-                    {item.subtitle && (
-                      <p className="text-amber-700 font-medium italic">{item.subtitle}</p>
-                    )}
-                    {item.location && (
-                      <p className="text-sm text-gray-600">{item.location}</p>
-                    )}
-                  </div>
-                  {item.date && (
-                    <span className="text-sm text-gray-600 bg-amber-100 px-3 py-1 rounded">
-                      {item.date}
-                    </span>
-                  )}
-                </div>
-                {item.description && (
-                  <div className="text-gray-700 text-sm leading-relaxed whitespace-pre-line">
-                    {item.description}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
+  // Template selector - for now just showing Executive Classic
+  const renderTemplate = () => {
+    switch (template) {
+      case "executive-classic":
+        return <ExecutiveClassicTemplate />;
+      default:
+        return <ExecutiveClassicTemplate />;
+    }
+  };
 
   return (
-    <div className="flex-1 bg-gray-100 p-2 sm:p-4 lg:p-8">
-      <div className={`mx-auto ${isMobile ? 'max-w-sm' : 'max-w-2xl'}`}>
-        <div className={`${isMobile ? 'transform scale-75 origin-top' : ''}`}>
-          {renderTemplate()}
+    <div className="flex-1 bg-gray-100 overflow-auto">
+      <div className={`${isMobile ? 'p-2' : 'p-4 lg:p-8'} min-h-full`}>
+        <div className="flex justify-center">
+          <div className={`w-full ${isMobile ? 'max-w-full' : 'max-w-4xl'} relative`} style={{ minHeight: '600px' }}
+            onContextMenu={isInteractiveMode ? handleCanvasContextMenu : undefined}>
+            {isInteractiveMode ? (
+              <>
+                {/* Render draggable/resizable elements */}
+                {canvasElements.map(el => (
+                  <DraggableResizable
+                    key={el.id}
+                    x={el.x}
+                    y={el.y}
+                    width={el.width}
+                    height={el.height}
+                    onMove={(x, y) => handleElementMove(el.id, x, y)}
+                    onResize={(w, h) => handleElementResize(el.id, w, h)}
+                  >
+                    {el.type === "text" && (
+                      <input
+                        type="text"
+                        value={el.content}
+                        onChange={e => handleElementEdit(el.id, e.target.value)}
+                        style={{ width: "100%", height: "100%", color: el.color, background: "transparent", border: "none" }}
+                      />
+                    )}
+                    {el.type === "textarea" && (
+                      <textarea
+                        value={el.content}
+                        onChange={e => handleElementEdit(el.id, e.target.value)}
+                        style={{ width: "100%", height: "100%", color: el.color, background: "transparent", border: "none" }}
+                      />
+                    )}
+                    {el.type === "shape" && (
+                      <div style={{ width: "100%", height: "100%", background: el.background, border: "1px solid #888" }} />
+                    )}
+                  </DraggableResizable>
+                ))}
+                {/* Context menu for adding elements */}
+                {contextMenu.visible && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      left: contextMenu.x,
+                      top: contextMenu.y,
+                      zIndex: 1000,
+                      background: 'white',
+                      border: '1px solid #ccc',
+                      borderRadius: '6px',
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
+                      minWidth: 120,
+                      padding: '8px',
+                    }}
+                    onContextMenu={e => e.preventDefault()}
+                  >
+                    <button style={{ display: 'block', width: '100%', marginBottom: 4 }} onClick={() => addElement("text", { x: contextMenu.x, y: contextMenu.y })}>Add Text</button>
+                    <button style={{ display: 'block', width: '100%', marginBottom: 4 }} onClick={() => addElement("textarea", { x: contextMenu.x, y: contextMenu.y })}>Add Textarea</button>
+                    <button style={{ display: 'block', width: '100%' }} onClick={() => addElement("shape", { x: contextMenu.x, y: contextMenu.y })}>Add Shape</button>
+                    <button style={{ display: 'block', width: '100%', marginTop: 8, color: '#888' }} onClick={() => setContextMenu({ ...contextMenu, visible: false })}>Close</button>
+                  </div>
+                )}
+              </>
+            ) : null}
+            {renderTemplate()}
+          </div>
         </div>
       </div>
     </div>

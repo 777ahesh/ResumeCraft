@@ -119,19 +119,39 @@ export const generateResumePDF = async (
 
   // Helper function to add section header
   const addSectionHeader = (title: string, y: number): number => {
-    pdf.setFontSize(FONT_SIZES.sectionHeader);
-    pdf.setTextColor(colors.primary[0], colors.primary[1], colors.primary[2]);
-    pdf.setFont("helvetica", "bold");
-    pdf.text(title, opts.margins.left, y);
-    
-    // Add underline
-    const textWidth = pdf.getTextWidth(title);
-    pdf.setDrawColor(colors.primary[0], colors.primary[1], colors.primary[2]);
-    pdf.setLineWidth(0.5);
-    pdf.line(opts.margins.left, y + 2, opts.margins.left + textWidth, y + 2);
-    
-    pdf.setFont("helvetica", "normal");
-    return y + 10;
+    if (template === "executive-classic") {
+      // Executive style section headers - centered and underlined
+      pdf.setFontSize(FONT_SIZES.sectionHeader);
+      pdf.setTextColor(colors.primary[0], colors.primary[1], colors.primary[2]);
+      pdf.setFont("helvetica", "bold");
+      
+      const titleWidth = pdf.getTextWidth(title.toUpperCase());
+      const titleX = (pageWidth - titleWidth) / 2;
+      pdf.text(title.toUpperCase(), titleX, y);
+      
+      // Add underline
+      pdf.setDrawColor(colors.primary[0], colors.primary[1], colors.primary[2]);
+      pdf.setLineWidth(0.5);
+      pdf.line(titleX, y + 2, titleX + titleWidth, y + 2);
+      
+      pdf.setFont("helvetica", "normal");
+      return y + 12;
+    } else {
+      // Standard section headers for other templates
+      pdf.setFontSize(FONT_SIZES.sectionHeader);
+      pdf.setTextColor(colors.primary[0], colors.primary[1], colors.primary[2]);
+      pdf.setFont("helvetica", "bold");
+      pdf.text(title, opts.margins.left, y);
+      
+      // Add underline
+      const textWidth = pdf.getTextWidth(title);
+      pdf.setDrawColor(colors.primary[0], colors.primary[1], colors.primary[2]);
+      pdf.setLineWidth(0.5);
+      pdf.line(opts.margins.left, y + 2, opts.margins.left + textWidth, y + 2);
+      
+      pdf.setFont("helvetica", "normal");
+      return y + 10;
+    }
   };
 
   // Helper function to add regular text
@@ -143,42 +163,101 @@ export const generateResumePDF = async (
     return y + fontSize * 0.4 + 2; // Use proper line height
   };
 
-  // Header Section
-  if (resumeData.personalInfo.name) {
-    pdf.setFontSize(FONT_SIZES.name);
-    pdf.setTextColor(colors.primary[0], colors.primary[1], colors.primary[2]);
-    pdf.setFont("helvetica", "bold");
-    pdf.text(resumeData.personalInfo.name, opts.margins.left, yPosition);
-    yPosition += 8;
+  // Header Section - Executive Classic Style
+  if (template === "executive-classic") {
+    // Executive Classic Header with centered name and letterhead style
+    if (resumeData.personalInfo.name) {
+      pdf.setFontSize(FONT_SIZES.name);
+      pdf.setTextColor(colors.primary[0], colors.primary[1], colors.primary[2]);
+      pdf.setFont("helvetica", "bold");
+      
+      // Center the name
+      const nameWidth = pdf.getTextWidth(resumeData.personalInfo.name.toUpperCase());
+      const nameX = (pageWidth - nameWidth) / 2;
+      pdf.text(resumeData.personalInfo.name.toUpperCase(), nameX, yPosition);
+      yPosition += 8;
+      
+      // Add decorative line under name
+      const lineWidth = 24;
+      const lineX = (pageWidth - lineWidth) / 2;
+      pdf.setDrawColor(colors.primary[0], colors.primary[1], colors.primary[2]);
+      pdf.setLineWidth(1);
+      pdf.line(lineX, yPosition, lineX + lineWidth, yPosition);
+      yPosition += 6;
+    }
+
+    if (resumeData.personalInfo.title) {
+      pdf.setFontSize(FONT_SIZES.title);
+      pdf.setTextColor(colors.secondary[0], colors.secondary[1], colors.secondary[2]);
+      pdf.setFont("helvetica", "italic");
+      
+      // Center the title
+      const titleWidth = pdf.getTextWidth(resumeData.personalInfo.title);
+      const titleX = (pageWidth - titleWidth) / 2;
+      pdf.text(resumeData.personalInfo.title, titleX, yPosition);
+      yPosition += 8;
+    }
+
+    // Contact information centered with bullet separators
+    const contactInfo = [
+      resumeData.personalInfo.email,
+      resumeData.personalInfo.phone,
+      resumeData.personalInfo.location,
+    ].filter(Boolean);
+
+    if (contactInfo.length > 0) {
+      pdf.setFontSize(FONT_SIZES.small);
+      pdf.setTextColor(colors.text[0], colors.text[1], colors.text[2]);
+      const contactText = contactInfo.join(" • ");
+      const contactWidth = pdf.getTextWidth(contactText);
+      const contactX = (pageWidth - contactWidth) / 2;
+      pdf.text(contactText, contactX, yPosition);
+      yPosition += 10;
+    }
+
+    // Add full-width separator line
+    pdf.setDrawColor(colors.primary[0], colors.primary[1], colors.primary[2]);
+    pdf.setLineWidth(2);
+    pdf.line(opts.margins.left, yPosition, pageWidth - opts.margins.right, yPosition);
+    yPosition += 12;
+  } else {
+    // Standard header for other templates
+    if (resumeData.personalInfo.name) {
+      pdf.setFontSize(FONT_SIZES.name);
+      pdf.setTextColor(colors.primary[0], colors.primary[1], colors.primary[2]);
+      pdf.setFont("helvetica", "bold");
+      pdf.text(resumeData.personalInfo.name, opts.margins.left, yPosition);
+      yPosition += 8;
+    }
+
+    if (resumeData.personalInfo.title) {
+      pdf.setFontSize(FONT_SIZES.title);
+      pdf.setTextColor(colors.secondary[0], colors.secondary[1], colors.secondary[2]);
+      pdf.setFont("helvetica", "normal");
+      pdf.text(resumeData.personalInfo.title, opts.margins.left, yPosition);
+      yPosition += 6;
+    }
+
+    // Contact information
+    const contactInfo = [
+      resumeData.personalInfo.email,
+      resumeData.personalInfo.phone,
+      resumeData.personalInfo.location,
+    ].filter(Boolean);
+
+    if (contactInfo.length > 0) {
+      pdf.setFontSize(FONT_SIZES.small);
+      pdf.setTextColor(colors.text[0], colors.text[1], colors.text[2]);
+      pdf.text(contactInfo.join(" • "), opts.margins.left, yPosition);
+      yPosition += 8;
+    }
+
+    // Add separator line
+    pdf.setDrawColor(colors.primary[0], colors.primary[1], colors.primary[2]);
+    pdf.setLineWidth(1);
+    pdf.line(opts.margins.left, yPosition, pageWidth - opts.margins.right, yPosition);
+    yPosition += 10;
   }
-
-  if (resumeData.personalInfo.title) {
-    pdf.setFontSize(FONT_SIZES.title);
-    pdf.setTextColor(colors.secondary[0], colors.secondary[1], colors.secondary[2]);
-    pdf.setFont("helvetica", "normal");
-    pdf.text(resumeData.personalInfo.title, opts.margins.left, yPosition);
-    yPosition += 6;
-  }
-
-  // Contact information
-  const contactInfo = [
-    resumeData.personalInfo.email,
-    resumeData.personalInfo.phone,
-    resumeData.personalInfo.location,
-  ].filter(Boolean);
-
-  if (contactInfo.length > 0) {
-    pdf.setFontSize(FONT_SIZES.small);
-    pdf.setTextColor(colors.text[0], colors.text[1], colors.text[2]);
-    pdf.text(contactInfo.join(" • "), opts.margins.left, yPosition);
-    yPosition += 8;
-  }
-
-  // Add separator line
-  pdf.setDrawColor(colors.primary[0], colors.primary[1], colors.primary[2]);
-  pdf.setLineWidth(1);
-  pdf.line(opts.margins.left, yPosition, pageWidth - opts.margins.right, yPosition);
-  yPosition += 10;
 
   // Professional Summary
   if (resumeData.personalInfo.summary) {
@@ -332,7 +411,11 @@ export const downloadResumePDF = async (
   options?: Partial<PDFOptions>
 ): Promise<void> => {
   try {
+    console.log('Generating fallback PDF with template:', template);
+    
     const pdfBlob = await generateResumePDF(resumeData, template, options);
+    
+    console.log('Fallback PDF blob generated:', { size: pdfBlob.size, type: pdfBlob.type });
     
     // Create download link
     const url = URL.createObjectURL(pdfBlob);
@@ -342,6 +425,8 @@ export const downloadResumePDF = async (
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    
+    console.log('Fallback PDF download triggered');
     
     // Clean up
     URL.revokeObjectURL(url);

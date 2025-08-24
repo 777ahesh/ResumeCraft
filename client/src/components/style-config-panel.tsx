@@ -21,12 +21,15 @@ import {
   Eye
 } from "lucide-react";
 import { useState } from "react";
-import type { StyleConfig } from "@/types/resume";
+import type { StyleConfig, FieldStyle } from "@/types/resume";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 interface StyleConfigPanelProps {
   styleConfig: StyleConfig;
   onChange: (config: StyleConfig) => void;
+  selectedField?: string | null;
+  fieldStyles?: Record<string, FieldStyle>;
+  onFieldStyleChange?: (fieldId: string, styles: FieldStyle) => void;
 }
 
 const defaultStyleConfig: StyleConfig = {
@@ -66,10 +69,17 @@ const colorPresets = [
   { name: 'Warm Red', primary: '#DC2626', secondary: '#EF4444' },
 ];
 
-export function StyleConfigPanel({ styleConfig, onChange }: StyleConfigPanelProps) {
+export function StyleConfigPanel({ 
+  styleConfig, 
+  onChange, 
+  selectedField, 
+  fieldStyles = {}, 
+  onFieldStyleChange 
+}: StyleConfigPanelProps) {
   const isMobile = useIsMobile();
   const [openSections, setOpenSections] = useState({
-    typography: true,
+    fieldSpecific: selectedField !== null,
+    typography: !selectedField || !isMobile,
     colors: !isMobile,
     layout: !isMobile,
     presets: !isMobile,
@@ -86,6 +96,22 @@ export function StyleConfigPanel({ styleConfig, onChange }: StyleConfigPanelProp
     });
   };
 
+  const updateFieldStyle = (field: keyof FieldStyle, value: any) => {
+    if (!selectedField || !onFieldStyleChange) return;
+    
+    const currentFieldStyles = fieldStyles[selectedField] || {};
+    const newFieldStyles = {
+      ...currentFieldStyles,
+      [field]: value,
+    };
+    onFieldStyleChange(selectedField, newFieldStyles);
+  };
+
+  const getCurrentFieldStyle = (field: keyof FieldStyle): any => {
+    if (!selectedField) return undefined;
+    return fieldStyles[selectedField]?.[field];
+  };
+
   const applyPreset = (preset: typeof colorPresets[0]) => {
     onChange({
       ...styleConfig,
@@ -99,10 +125,10 @@ export function StyleConfigPanel({ styleConfig, onChange }: StyleConfigPanelProp
   };
 
   return (
-    <div className={`bg-white border-r border-gray-200 ${isMobile ? 'w-full' : 'w-80'} overflow-y-auto p-4 space-y-4`}>
+    <div className={`bg-white ${!isMobile ? 'border-r border-gray-200' : ''} ${isMobile ? 'w-full h-full' : 'w-80'} overflow-y-auto ${isMobile ? 'p-3' : 'p-4'} space-y-4`}>
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold text-gray-900 flex items-center">
-          <Settings className="mr-2 h-5 w-5" />
+        <h2 className={`${isMobile ? 'text-base' : 'text-lg'} font-semibold text-gray-900 flex items-center`}>
+          <Settings className={`mr-2 ${isMobile ? 'h-4 w-4' : 'h-5 w-5'}`} />
           Style Configuration
         </h2>
         <Button
@@ -115,6 +141,152 @@ export function StyleConfigPanel({ styleConfig, onChange }: StyleConfigPanelProp
           Reset
         </Button>
       </div>
+
+      {/* Field-Specific Styling Section */}
+      {selectedField && (
+        <Collapsible open={openSections.fieldSpecific} onOpenChange={() => toggleSection('fieldSpecific')}>
+          <CollapsibleTrigger asChild>
+            <Button variant="ghost" className="w-full justify-between p-0 h-auto">
+              <div className="flex items-center">
+                {openSections.fieldSpecific ? <ChevronDown className="h-4 w-4 mr-2" /> : <ChevronRight className="h-4 w-4 mr-2" />}
+                <Eye className="h-4 w-4 mr-2" />
+                <span className="font-medium">Selected Field Styles</span>
+              </div>
+            </Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="space-y-4 mt-3">
+            <Card className="border-blue-200 bg-blue-50">
+              <CardContent className="p-4 space-y-4">
+                <div className="text-xs text-blue-600 font-medium mb-2">
+                  Styling: {selectedField.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                </div>
+                
+                {/* Field Font Size */}
+                <div className="space-y-2">
+                  <Label htmlFor="fieldFontSize">Font Size: {getCurrentFieldStyle('fontSize') || 'inherit'}px</Label>
+                  <Slider
+                    value={[Number(getCurrentFieldStyle('fontSize')) || styleConfig.fontSize]}
+                    onValueChange={(value) => updateFieldStyle('fontSize', value[0])}
+                    max={32}
+                    min={8}
+                    step={1}
+                    className="w-full"
+                  />
+                </div>
+
+                {/* Field Font Family */}
+                <div className="space-y-2">
+                  <Label htmlFor="fieldFontFamily">Font Family</Label>
+                  <Select 
+                    value={String(getCurrentFieldStyle('fontFamily') || styleConfig.fontFamily)} 
+                    onValueChange={(value) => updateFieldStyle('fontFamily', value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select font family" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {fontFamilies.map((font) => (
+                        <SelectItem key={font.value} value={font.value}>
+                          <span style={{ fontFamily: font.value }}>{font.label}</span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Field Color */}
+                <div className="space-y-2">
+                  <Label htmlFor="fieldColor">Text Color</Label>
+                  <div className="flex space-x-2">
+                    <Input
+                      type="color"
+                      value={String(getCurrentFieldStyle('color') || styleConfig.textColor)}
+                      onChange={(e) => updateFieldStyle('color', e.target.value)}
+                      className="w-12 h-8 p-1 border rounded"
+                    />
+                    <Input
+                      type="text"
+                      value={String(getCurrentFieldStyle('color') || styleConfig.textColor)}
+                      onChange={(e) => updateFieldStyle('color', e.target.value)}
+                      placeholder="#000000"
+                      className="flex-1"
+                    />
+                  </div>
+                </div>
+
+                {/* Field Font Weight */}
+                <div className="space-y-2">
+                  <Label htmlFor="fieldFontWeight">Font Weight</Label>
+                  <Select 
+                    value={String(getCurrentFieldStyle('fontWeight') || 'normal')} 
+                    onValueChange={(value) => updateFieldStyle('fontWeight', value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select font weight" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="normal">Normal</SelectItem>
+                      <SelectItem value="bold">Bold</SelectItem>
+                      <SelectItem value="lighter">Lighter</SelectItem>
+                      <SelectItem value="bolder">Bolder</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Field Font Style */}
+                <div className="space-y-2">
+                  <Label htmlFor="fieldFontStyle">Font Style</Label>
+                  <Select 
+                    value={String(getCurrentFieldStyle('fontStyle') || 'normal')} 
+                    onValueChange={(value) => updateFieldStyle('fontStyle', value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select font style" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="normal">Normal</SelectItem>
+                      <SelectItem value="italic">Italic</SelectItem>
+                      <SelectItem value="oblique">Oblique</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Field Text Align */}
+                <div className="space-y-2">
+                  <Label htmlFor="fieldTextAlign">Text Alignment</Label>
+                  <Select 
+                    value={String(getCurrentFieldStyle('textAlign') || 'left')} 
+                    onValueChange={(value) => updateFieldStyle('textAlign', value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select text alignment" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="left">Left</SelectItem>
+                      <SelectItem value="center">Center</SelectItem>
+                      <SelectItem value="right">Right</SelectItem>
+                      <SelectItem value="justify">Justify</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Field Line Height */}
+                <div className="space-y-2">
+                  <Label htmlFor="fieldLineHeight">Line Height: {getCurrentFieldStyle('lineHeight') || styleConfig.lineHeight}</Label>
+                  <Slider
+                    value={[Number(getCurrentFieldStyle('lineHeight')) || styleConfig.lineHeight]}
+                    onValueChange={(value) => updateFieldStyle('lineHeight', value[0])}
+                    max={3}
+                    min={1}
+                    step={0.1}
+                    className="w-full"
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          </CollapsibleContent>
+        </Collapsible>
+      )}
 
       {/* Typography Section */}
       <Collapsible open={openSections.typography} onOpenChange={() => toggleSection('typography')}>

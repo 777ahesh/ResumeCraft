@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 import type { ResumeData, StyleConfig } from "@/types/resume";
 import { downloadResumePDF, resumePDFToBase64 } from "@/lib/pdf-generator";
+import { downloadPDFFromElement, getPDFBase64FromElement } from "@/lib/html-to-pdf";
 import { downloadResumeWord } from "@/lib/word-generator";
 import { saveResumeToLocalStorage, savePDFToLocalStorage } from "@/lib/resume-utils";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -39,6 +40,7 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
+import { useRef } from "react";
 
 export default function ResumeEditor() {
   const { user, loading } = useAuth();
@@ -56,6 +58,12 @@ export default function ResumeEditor() {
   const [showControlPanel, setShowControlPanel] = useState(!isMobile);
   const [activePanel, setActivePanel] = useState<'content' | 'style'>('content');
   const [isInteractiveMode, setIsInteractiveMode] = useState(false);
+  const [selectedField, setSelectedField] = useState<string | null>(null);
+  const [isStylePanelOpen, setIsStylePanelOpen] = useState(false);
+  const [fieldStyles, setFieldStyles] = useState<Record<string, any>>({});
+  
+  // Ref for capturing the resume canvas for PDF generation
+  const resumeCanvasRef = useRef<HTMLDivElement>(null);
 
   // Default style configuration
   const defaultStyleConfig: StyleConfig = {
@@ -79,6 +87,38 @@ export default function ResumeEditor() {
     { id: "tech-developer", name: "Tech Developer", description: "Terminal/IDE interface" },
     { id: "academic-scholar", name: "Academic Scholar", description: "Research paper style" }
   ];
+
+  // Field selection handlers
+  const handleFieldSelect = (fieldId: string) => {
+    setSelectedField(fieldId);
+  };
+
+  const handleStylePanelOpen = () => {
+    setIsStylePanelOpen(true);
+    setActivePanel('style');
+    if (isMobile) {
+      setShowControlPanel(true);
+    }
+  };
+
+  const handleFieldStyleChange = (fieldId: string, styles: any) => {
+    setFieldStyles(prev => ({
+      ...prev,
+      [fieldId]: styles
+    }));
+    // Also update the resume data to persist the field styles
+    if (resumeData) {
+      const updatedResumeData = {
+        ...resumeData,
+        fieldStyles: {
+          ...resumeData?.fieldStyles,
+          [fieldId]: styles
+        }
+      };
+      setResumeData(updatedResumeData);
+      setHasChanges(true);
+    }
+  };
 
   useEffect(() => {
     if (!loading && !user) {
@@ -104,6 +144,11 @@ export default function ResumeEditor() {
       console.log('✅ Setting resume data in editor:', JSON.stringify(resumeDataWithDefaults, null, 2));
       setResumeData(resumeDataWithDefaults);
       setCurrentTemplate(resume.templateId || "modern-professional");
+      
+      // Initialize field styles if they exist
+      if (resumeDataWithDefaults.fieldStyles) {
+        setFieldStyles(resumeDataWithDefaults.fieldStyles);
+      }
     }
   }, [resume]);
 
@@ -138,9 +183,30 @@ export default function ResumeEditor() {
         }
       });
 
-      // Generate and save PDF
-      const pdfBase64 = await resumePDFToBase64(resumeData, currentTemplate);
-      await savePDFToLocalStorage(resume.id, pdfBase64);
+      // Generate and save PDF using HTML canvas
+      if (resumeCanvasRef.current) {
+        const canvasElement = resumeCanvasRef.current.querySelector('.resume-canvas') as HTMLElement;
+        if (canvasElement) {
+          try {
+            const pdfBase64 = await getPDFBase64FromElement(canvasElement, {
+              quality: 0.95,
+              scale: 2,
+              useCORS: true,
+              allowTaint: true
+            });
+            await savePDFToLocalStorage(resume.id, pdfBase64);
+          } catch (pdfError) {
+            console.warn('HTML-to-PDF generation failed, trying fallback:', pdfError);
+            // Fallback to original PDF generator
+            try {
+              const fallbackPdfBase64 = await resumePDFToBase64(resumeData, currentTemplate);
+              await savePDFToLocalStorage(resume.id, fallbackPdfBase64);
+            } catch (fallbackError) {
+              console.warn('Fallback PDF generation also failed, skipping PDF save:', fallbackError);
+            }
+          }
+        }
+      }
       
       setHasChanges(false);
       toast({
@@ -179,28 +245,60 @@ export default function ResumeEditor() {
   };
 
   const handleDownloadPDF = async () => {
-    if (!resumeData) return;
-    
-    try {
-      await downloadResumePDF(
-        resumeData,
-        resume.title || "resume",
-        currentTemplate
-      );
-      toast({
-        title: "Success!",
-        description: "PDF downloaded successfully.",
-      });
-    } catch (error) {
+    if (!resumeData || !resumeCanvasRef.current) {
+      console.error('Missing data for PDF generation:', { resumeData: !!resumeData, canvasRef: !!resumeCanvasRef.current });
       toast({
         title: "Error",
-        description: "Failed to download PDF. Please try again.",
+        description: "Unable to generate PDF. Please try again.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    console.log('PDF download initiated');
+    console.log('Resume canvas ref:', resumeCanvasRef.current);
+
+    try {
+      // Find the actual resume canvas element
+      let canvasElement = resumeCanvasRef.current.querySelector('.resume-canvas') as HTMLElement;
+      
+      // Fallback: try to find any element with resume content
+      if (!canvasElement) {
+        canvasElement = resumeCanvasRef.current.querySelector('[class*="resume"]') as HTMLElement;
+      }
+      
+      // Last resort: use the ref element itself if it has content
+      if (!canvasElement && resumeCanvasRef.current.children.length > 0) {
+        canvasElement = resumeCanvasRef.current.children[0] as HTMLElement;
+      }
+      
+      console.log('Canvas element found:', canvasElement);
+      
+      if (!canvasElement) {
+        throw new Error('Resume canvas element not found');
+      }
+
+      console.log('Starting HTML-to-PDF generation...');
+      await downloadPDFFromElement(
+        canvasElement,
+        `${resume.title || "resume"}.pdf`,
+        {
+          quality: 0.95,
+          scale: 2,
+          useCORS: true,
+          allowTaint: true
+        }
+      );
+    } catch (error) {
+      console.error('HTML-to-PDF download error:', error);
+      toast({
+        title: "Error",
+        description: "Failed to generate PDF from the resume preview. Please check that your resume is visible and try again.",
         variant: "destructive",
       });
     }
-  };
-
-  const handleDownloadWord = async () => {
+// ...existing code...
+  };  const handleDownloadWord = async () => {
     if (!resumeData) return;
     
     try {
@@ -246,41 +344,110 @@ export default function ResumeEditor() {
             </div>
           </div>
           
-          <div className="flex items-center space-x-1 sm:space-x-3">
+          <div className="flex items-center space-x-1">
             {/* Mobile Control Panel Toggle */}
             {isMobile && (
               <Sheet>
                 <SheetTrigger asChild>
                   <Button variant="outline" size="sm">
-                    <Menu className="h-4 w-4" />
+                    <Menu className="h-4 w-4 mr-1" />
+                    Edit
                   </Button>
                 </SheetTrigger>
-                <SheetContent side="left" className="w-80 p-0">
-                  <Tabs defaultValue="content" className="h-full">
-                    <div className="p-4 border-b">
+                <SheetContent side="bottom" className="h-[90vh] rounded-t-xl p-0">
+                  <Tabs defaultValue="content" className="h-full flex flex-col">
+                    <div className="p-4 border-b bg-white shrink-0">
+                      <div className="w-12 h-1 bg-gray-300 rounded-full mx-auto mb-4"></div>
                       <TabsList className="grid w-full grid-cols-2">
-                        <TabsTrigger value="content">Content</TabsTrigger>
-                        <TabsTrigger value="style">Style</TabsTrigger>
+                        <TabsTrigger value="content" className="text-sm">Content</TabsTrigger>
+                        <TabsTrigger value="style" className="text-sm">Style</TabsTrigger>
                       </TabsList>
                     </div>
-                    <TabsContent value="content" className="m-0 h-full">
-                      <ResumeControlPanel
-                        resumeData={resumeData}
-                        onChange={handleDataChange}
-                      />
-                    </TabsContent>
-                    <TabsContent value="style" className="m-0 h-full">
-                      <StyleConfigPanel
-                        styleConfig={resumeData?.styleConfig || defaultStyleConfig}
-                        onChange={handleStyleChange}
-                      />
-                    </TabsContent>
+                    <div className="flex-1 overflow-hidden">
+                      <TabsContent value="content" className="h-full m-0 overflow-hidden">
+                        <div className="h-full overflow-y-auto">
+                          <ResumeControlPanel
+                            resumeData={resumeData}
+                            onChange={handleDataChange}
+                          />
+                        </div>
+                      </TabsContent>
+                      <TabsContent value="style" className="h-full m-0 overflow-hidden">
+                        <div className="h-full overflow-y-auto">
+                          <StyleConfigPanel
+                            styleConfig={resumeData?.styleConfig || defaultStyleConfig}
+                            onChange={handleStyleChange}
+                            selectedField={selectedField}
+                            fieldStyles={fieldStyles}
+                            onFieldStyleChange={handleFieldStyleChange}
+                          />
+                        </div>
+                      </TabsContent>
+                    </div>
                   </Tabs>
                 </SheetContent>
               </Sheet>
             )}
 
-            {!isMobile && (
+            {isMobile ? (
+              // Mobile compact toolbar
+              <div className="flex items-center space-x-1">
+                {/* Template Selector - More compact for mobile */}
+                <Select value={currentTemplate} onValueChange={handleTemplateChange}>
+                  <SelectTrigger className="w-20 text-xs h-8">
+                    <Palette className="h-3 w-3" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {templateOptions.map((template) => (
+                      <SelectItem key={template.id} value={template.id}>
+                        <span className="text-xs">{template.name}</span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                
+                {/* Interactive Mode Toggle */}
+                <Button
+                  variant={isInteractiveMode ? "default" : "outline"}
+                  onClick={() => setIsInteractiveMode(!isInteractiveMode)}
+                  size="sm"
+                  className="h-8 px-2"
+                >
+                  <Move className="h-3 w-3" />
+                </Button>
+                
+                {/* Save Button */}
+                <Button
+                  variant="outline"
+                  onClick={handleSave}
+                  disabled={!hasChanges || updateResume.isPending}
+                  size="sm"
+                  className="h-8 px-2"
+                >
+                  <Save className="h-3 w-3" />
+                </Button>
+                
+                {/* Download Dropdown */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button className="bg-primary hover:bg-primary/90 h-8 px-2" size="sm">
+                      <Download className="h-3 w-3" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={handleDownloadPDF}>
+                      <FileText className="mr-2 h-4 w-4" />
+                      PDF
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleDownloadWord}>
+                      <FileText className="mr-2 h-4 w-4" />
+                      Word
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            ) : (
+              // Desktop toolbar
               <>
                 <Button variant="ghost" disabled size="sm">
                   <Undo className="mr-1 h-3 w-3 sm:h-4 sm:w-4" />
@@ -304,72 +471,69 @@ export default function ResumeEditor() {
                 </Button>
                 
                 <div className="h-4 sm:h-6 w-px bg-gray-300"></div>
+                
+                {/* Template Selector */}
+                <div className="flex items-center gap-1 sm:gap-2">
+                  <Palette className="h-3 w-3 sm:h-4 sm:w-4 text-gray-600" />
+                  <Select value={currentTemplate} onValueChange={handleTemplateChange}>
+                    <SelectTrigger className="w-48 text-xs sm:text-sm">
+                      <SelectValue placeholder="Select template" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {templateOptions.map((template) => (
+                        <SelectItem key={template.id} value={template.id}>
+                          <div className="flex flex-col">
+                            <span className="font-medium text-xs sm:text-sm">{template.name}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="h-4 sm:h-6 w-px bg-gray-300"></div>
+                
+                {/* Interactive Mode Toggle */}
+                <Button
+                  variant={isInteractiveMode ? "default" : "outline"}
+                  onClick={() => setIsInteractiveMode(!isInteractiveMode)}
+                  size="default"
+                >
+                  <Move className="mr-1 h-4 w-4" />
+                  {isInteractiveMode ? "Exit Move" : "Move Mode"}
+                </Button>
+                
+                <Button
+                  variant="outline"
+                  onClick={handleSave}
+                  disabled={!hasChanges || updateResume.isPending}
+                  size="default"
+                >
+                  <Save className="mr-1 h-4 w-4" />
+                  {updateResume.isPending ? "Saving..." : "Save"}
+                </Button>
+                
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button className="bg-primary hover:bg-primary/90" size="default">
+                      <Download className="mr-1 h-4 w-4" />
+                      Download
+                      <ChevronDown className="ml-1 h-3 w-3" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={handleDownloadPDF}>
+                      <FileText className="mr-2 h-4 w-4" />
+                      Download as PDF
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleDownloadWord}>
+                      <FileText className="mr-2 h-4 w-4" />
+                      Download as Word
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </>
             )}
-
-            {/* Template Selector */}
-            <div className="flex items-center gap-1 sm:gap-2">
-              <Palette className="h-3 w-3 sm:h-4 sm:w-4 text-gray-600" />
-              <Select value={currentTemplate} onValueChange={handleTemplateChange}>
-                <SelectTrigger className={`${isMobile ? 'w-32' : 'w-48'} text-xs sm:text-sm`}>
-                  <SelectValue placeholder="Select template" />
-                </SelectTrigger>
-                <SelectContent>
-                  {templateOptions.map((template) => (
-                    <SelectItem key={template.id} value={template.id}>
-                      <div className="flex flex-col">
-                        <span className="font-medium text-xs sm:text-sm">{template.name}</span>
-                        {/* {!isMobile && (
-                          <span className="text-xs text-gray-500">{template.description}</span>
-                        )} */}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {!isMobile && <div className="h-4 sm:h-6 w-px bg-gray-300"></div>}
-            
-            {/* Interactive Mode Toggle */}
-            <Button
-              variant={isInteractiveMode ? "default" : "outline"}
-              onClick={() => setIsInteractiveMode(!isInteractiveMode)}
-              size={isMobile ? "sm" : "default"}
-            >
-              <Move className="mr-1 h-3 w-3 sm:h-4 sm:w-4" />
-              {isMobile ? "Move" : (isInteractiveMode ? "Exit Move" : "Move Mode")}
-            </Button>
-            
-            <Button
-              variant="outline"
-              onClick={handleSave}
-              disabled={!hasChanges || updateResume.isPending}
-              size={isMobile ? "sm" : "default"}
-            >
-              <Save className="mr-1 h-3 w-3 sm:h-4 sm:w-4" />
-              {updateResume.isPending ? (isMobile ? "..." : "Saving...") : (isMobile ? "Save" : "Save")}
-            </Button>
-            
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button className="bg-primary hover:bg-primary/90" size={isMobile ? "sm" : "default"}>
-                  <Download className="mr-1 h-3 w-3 sm:h-4 sm:w-4" />
-                  {!isMobile && "Download"}
-                  <ChevronDown className="ml-1 h-2 w-2 sm:h-3 sm:w-3" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={handleDownloadPDF}>
-                  <FileText className="mr-2 h-4 w-4" />
-                  Download as PDF
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleDownloadWord}>
-                  <FileText className="mr-2 h-4 w-4" />
-                  Download as Word
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
           </div>
         </div>
       </div>
@@ -377,32 +541,61 @@ export default function ResumeEditor() {
       {/* Editor Content */}
       <div className="flex-1 flex overflow-hidden">
         {!isMobile && (
-          activePanel === 'content' ? (
-            <ResumeControlPanel
-              resumeData={resumeData}
-              onChange={handleDataChange}
-            />
-          ) : (
-            <StyleConfigPanel
-              styleConfig={resumeData?.styleConfig || defaultStyleConfig}
-              onChange={handleStyleChange}
-            />
-          )
+          <div className="w-80 border-r border-gray-200 bg-white overflow-y-auto" style={{ maxHeight: '100vh' }}>
+            {activePanel === 'content' ? (
+              <ResumeControlPanel
+                resumeData={resumeData}
+                onChange={handleDataChange}
+              />
+            ) : (
+              <StyleConfigPanel
+                styleConfig={resumeData?.styleConfig || defaultStyleConfig}
+                onChange={handleStyleChange}
+                selectedField={selectedField}
+                fieldStyles={fieldStyles}
+                onFieldStyleChange={handleFieldStyleChange}
+              />
+            )}
+          </div>
         )}
-        <div className="flex-1 bg-gray-100 p-2 sm:p-4 lg:p-8 overflow-auto">
-          <div className="flex justify-center">
-            <div className={`${isMobile ? 'w-full max-w-sm' : 'w-full max-w-4xl'}`}>
-              <div className={`${isMobile ? 'transform scale-75 origin-top' : ''}`}>
-                <ResumeCanvas
-                  resumeData={resumeData}
-                  template={currentTemplate}
-                  styleConfig={resumeData?.styleConfig}
-                  isInteractiveMode={isInteractiveMode}
-                  onResumeDataChange={handleDataChange}
-                />
+        <div className="flex-1 bg-gray-100 overflow-auto" ref={resumeCanvasRef}>
+          {isMobile ? (
+            <div className="h-full w-full overflow-auto p-2">
+              <div className="flex justify-center">
+                <div className="w-full max-w-full">
+                  <ResumeCanvas
+                    resumeData={resumeData}
+                    template={currentTemplate}
+                    styleConfig={resumeData?.styleConfig}
+                    isInteractiveMode={isInteractiveMode}
+                    onResumeDataChange={handleDataChange}
+                    selectedField={selectedField}
+                    onFieldSelect={handleFieldSelect}
+                    onStylePanelOpen={handleStylePanelOpen}
+                    fieldStyles={fieldStyles}
+                  />
+                </div>
               </div>
             </div>
-          </div>
+          ) : (
+            <div className="p-4 lg:p-8 min-h-full">
+              <div className="flex justify-center">
+                <div className="w-full max-w-4xl">
+                  <ResumeCanvas
+                    resumeData={resumeData}
+                    template={currentTemplate}
+                    styleConfig={resumeData?.styleConfig}
+                    isInteractiveMode={isInteractiveMode}
+                    onResumeDataChange={handleDataChange}
+                    selectedField={selectedField}
+                    onFieldSelect={handleFieldSelect}
+                    onStylePanelOpen={handleStylePanelOpen}
+                    fieldStyles={fieldStyles}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
